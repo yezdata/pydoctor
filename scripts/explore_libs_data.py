@@ -6,8 +6,9 @@ import matplotlib.ticker as ticker
 
 
 def main():
-    libs_dir = "data/libs"
-    py_files = glob.glob(os.path.join(libs_dir, "**", "*.py"), recursive=True)
+    LIBS_DIR = "data/raw/libs"
+
+    py_files = glob.glob(os.path.join(LIBS_DIR, "**", "*.py"), recursive=True)
 
     char_counts = []
     for file_path in py_files:
