@@ -2,6 +2,15 @@ from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+class TokenizerConfig(BaseSettings):
+    name: str
+    eos_token: str
+
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore", env_prefix="TOKENIZER_"
+    )
+
+
 class DecoderConfig(BaseSettings):
     vocab_size: int
 

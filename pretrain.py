@@ -2,15 +2,17 @@ import torch
 import torch.nn as nn
 from accelerate import Accelerator
 from accelerate.utils import set_seed
-from transformers import AutoTokenizer, get_cosine_schedule_with_warmup
+from transformers import PreTrainedTokenizerFast, get_cosine_schedule_with_warmup
 from datasets import load_from_disk
 from tqdm import tqdm
+from functools import partial
 import math
 
+from src.utils.config_models import TokenizerConfig
 from src.utils.config_models import DecoderConfig, PretrainConfig
 from src.utils.save_load import save_decoder_model
-from src.utils.init_weights import init_weights_modern
-from src.utils.transformer_blocks import construct_block_diagonal_mask
+from src.model.init_weights import init_weights_modern
+from src.model.transformer_blocks import construct_block_diagonal_mask
 from src.model.decoder_arch import DecoderModel
 
 
@@ -21,11 +23,11 @@ def compute_loss(
     eos_token_id: int,
 ) -> torch.Tensor:
     shift_logits = logits[..., :-1, :].contiguous()
-    shift_targets = input_ids[..., 1:].contiguous()
+    shift_targets = input_ids[..., 1:].clone()
 
     input_eos_mask = input_ids[..., :-1] == eos_token_id
 
-    shift_targets[input_eos_mask] = -100
+    shift_targets = torch.where(input_eos_mask, torch.tensor(-100), shift_targets)
 
     B, S, V = shift_logits.shape
 
@@ -100,8 +102,12 @@ def get_input_positions(input_ids: torch.Tensor, eos_token_id: int) -> torch.Ten
 def main(save_dir: str) -> None:
     set_seed(6767)
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        "tokenizers/Qwen3-Coder-Next", local_files_only=True
+    tokenizer_config = TokenizerConfig()  # type: ignore
+
+    torch.autograd.set_detect_anomaly(True, check_nan=False)
+
+    tokenizer = PreTrainedTokenizerFast.from_pretrained(
+        f"tokenizers/{tokenizer_config.name}", local_files_only=True
     )
 
     model_config = DecoderConfig(vocab_size=len(tokenizer))  # type: ignore
@@ -118,15 +124,22 @@ def main(save_dir: str) -> None:
         expected_max_seq_len=train_config.max_seq_len,
     )
 
-    model.apply(lambda m: init_weights_modern(m, model_config.n_layers))
+    init_fn = partial(init_weights_modern, n_layers=model_config.n_layers)
+    model.apply(init_fn)
 
-    tokenized_train_ds = load_from_disk(f"{train_config.tokenized_ds_dir}/train")
-    tokenized_eval_ds = load_from_disk(f"{train_config.tokenized_ds_dir}/eval")
+    tokenized_train_ds = load_from_disk(
+        f"{train_config.tokenized_ds_dir}/train"
+    ).with_format("torch")
+    tokenized_eval_ds = load_from_disk(
+        f"{train_config.tokenized_ds_dir}/eval"
+    ).with_format("torch")
+
+    collator = partial(packed_collate_fn, eos_token_id=tokenizer.eos_token_id)
 
     train_dataloader = torch.utils.data.DataLoader(
         tokenized_train_ds,  # type: ignore
         batch_size=train_config.batch_size,
-        collate_fn=lambda batch: packed_collate_fn(batch, tokenizer.eos_token_id),
+        collate_fn=collator,
         shuffle=True,
         num_workers=8,
         pin_memory=True,
@@ -134,11 +147,17 @@ def main(save_dir: str) -> None:
     eval_dataloader = torch.utils.data.DataLoader(
         tokenized_eval_ds,  # type: ignore
         batch_size=train_config.batch_size,
-        collate_fn=lambda batch: packed_collate_fn(batch, tokenizer.eos_token_id),
+        collate_fn=collator,
         shuffle=False,
         num_workers=8,
         pin_memory=True,
     )
+
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+    accelerator.print(f"Total parameters: {total_params:,}")
+    accelerator.print(f"Trainable parameters: {trainable_params:,}")
 
     optimizer = torch.optim.AdamW(
         model.parameters(),

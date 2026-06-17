@@ -3,8 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from src.utils.config_models import DecoderConfig
-from src.utils.transformer_blocks import RMSNorm, SwiGLU
-from src.utils.rope import RotaryPositionalEmbeddings
+from src.model.transformer_blocks import RMSNorm, SwiGLU
+from src.model.rope import RotaryPositionalEmbeddings
 
 
 class DecoderLayer(nn.Module):
@@ -91,6 +91,9 @@ class DecoderModel(nn.Module):
         self.final_norm = RMSNorm(config.d_model)
         self.head = nn.Linear(config.d_model, config.vocab_size, bias=False)
 
+        # weight tying
+        self.head.weight = self.token_embedding.weight
+
         self.rope = RotaryPositionalEmbeddings(
             dim=config.d_model // config.n_head, max_seq_len=expected_max_seq_len
         )
@@ -105,9 +108,12 @@ class DecoderModel(nn.Module):
         mask: torch.Tensor | None = None,
         input_pos: torch.Tensor | None = None,
     ) -> torch.Tensor:
+
         x = self.token_embedding(x)
 
         for layer in self.layers:
             x = layer(x, mask, input_pos)
 
-        return self.head(self.final_norm(x))
+        x_norm = self.final_norm(x)
+
+        return self.head(x_norm)

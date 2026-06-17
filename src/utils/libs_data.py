@@ -2,6 +2,7 @@ import requests
 import zipfile
 import io
 import numpy as np
+import os
 
 
 def compute_line_stats(code: str) -> dict:
@@ -55,7 +56,7 @@ def passes_quality_filter(code: str) -> tuple[bool, str]:
     return True, "passed"
 
 
-def download_and_extract_py(repo):
+def download_and_extract_py(repo: str, save_dir: str):
     url = f"https://api.github.com/repos/{repo}/zipball"
     print(f"Downloading: {repo}")
 
@@ -76,7 +77,7 @@ def download_and_extract_py(repo):
                     )
 
                     dest_path = os.path.join(
-                        TARGET_DIR, repo.replace("/", "_"), relative_path
+                        save_dir, repo.replace("/", "_"), relative_path
                     )
                     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
