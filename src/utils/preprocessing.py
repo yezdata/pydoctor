@@ -31,29 +31,31 @@ def compute_line_stats(code: str) -> dict:
     }
 
 
-def passes_quality_filter(code: str) -> tuple[bool, str]:
+def passes_quality_filter(code: str | dict) -> bool:
     """
     Return (passes, reason). Applies basic code quality heuristics.
     """
+    if isinstance(code, dict):
+        code = code["text"]
     stats = compute_line_stats(code)
 
     # Too few lines
     if stats["num_lines"] < 3:
-        return False, "too_short"
+        return False
 
     # Likely minified (very long lines)
     if stats["avg_line_len"] > 150:
-        return False, "likely_minified"
+        return False
 
     # Very low alphabetic ratio (likely binary or machine-generated)
     if stats["alpha_ratio"] < 0.15:
-        return False, "low_alpha_ratio"
+        return False
 
     # Very low unique line ratio (repetitive boilerplate)
     if stats["unique_ratio"] < 0.1:
-        return False, "high_repetition"
+        return False
 
-    return True, "passed"
+    return True
 
 
 def download_and_extract_py(repo: str, save_dir: str):
@@ -92,11 +94,8 @@ def download_and_extract_py(repo: str, save_dir: str):
                             )
                             continue
 
-                        ok, reason = passes_quality_filter(code_text)
+                        ok = passes_quality_filter(code_text)
                         if not ok:
-                            print(
-                                f"Skipping {file_info.filename} due to quality filter: {reason}"
-                            )
                             continue
 
                         with open(dest_path, "wb") as target_file:

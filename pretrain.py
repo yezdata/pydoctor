@@ -3,10 +3,12 @@ import torch.nn as nn
 from accelerate import Accelerator
 from accelerate.utils import set_seed
 from transformers import PreTrainedTokenizerFast, get_cosine_schedule_with_warmup
-from datasets import load_from_disk
+from datasets import load_from_disk, concatenate_datasets
 from tqdm import tqdm
 from functools import partial
+import glob
 import math
+import os
 
 from src.utils.config_models import TokenizerConfig
 from src.utils.config_models import DecoderConfig, PretrainConfig
@@ -50,8 +52,7 @@ def evaluate(
             if steps_run >= max_eval_steps:
                 break
 
-            input_pos = get_input_positions(batch["input_ids"], eos_token_id)
-            outputs = model(batch["input_ids"], batch["attention_mask"], input_pos)
+            outputs = model(batch["input_ids"], batch["attention_mask"], batch["input_pos"])
             loss = compute_loss(criterion, outputs, batch["input_ids"], eos_token_id)
 
             total_loss += loss.detach().item()
@@ -70,41 +71,21 @@ def evaluate(
 # Custom collate_fn pro DataLoader
 def packed_collate_fn(batch: list[dict], eos_token_id: int) -> dict[str, torch.Tensor]:
     input_ids = torch.stack([item["input_ids"] for item in batch])  # (B, S)
-    B, S = input_ids.shape
-
+    input_pos = torch.stack([item["input_pos"] for item in batch])  # (B, S)
+    
     is_eos = input_ids == eos_token_id
 
     mask = construct_block_diagonal_mask(is_eos)  # (B, 1, S, S)
 
-    return {"input_ids": input_ids, "attention_mask": mask}
+    return {"input_ids": input_ids, "attention_mask": mask, "input_pos": input_pos}
 
-
-def get_input_positions(input_ids: torch.Tensor, eos_token_id: int) -> torch.Tensor:
-    is_eos = input_ids == eos_token_id
-
-    B, S = is_eos.shape
-    device = is_eos.device
-
-    global_indices = torch.arange(S, device=device).unsqueeze(0).expand(B, S)
-
-    start_mask = torch.zeros((B, 1), dtype=torch.bool, device=device)
-    start_mask = torch.cat([start_mask, is_eos[:, :-1]], dim=-1)
-
-    offset_markers = torch.where(
-        start_mask, global_indices, torch.zeros_like(global_indices)
-    )
-
-    offsets, _ = torch.cummax(offset_markers, dim=-1)
-
-    return global_indices - offsets
 
 
 def main(save_dir: str) -> None:
     set_seed(6767)
+    num_workers = min(16, os.cpu_count() or 1)
 
     tokenizer_config = TokenizerConfig()  # type: ignore
-
-    torch.autograd.set_detect_anomaly(True, check_nan=False)
 
     tokenizer = PreTrainedTokenizerFast.from_pretrained(
         f"tokenizers/{tokenizer_config.name}", local_files_only=True
@@ -113,6 +94,7 @@ def main(save_dir: str) -> None:
     model_config = DecoderConfig(vocab_size=len(tokenizer))  # type: ignore
 
     train_config = PretrainConfig()  # type: ignore
+    train_config.tokenized_ds_dir = f"{train_config.tokenized_ds_dir}{train_config.max_seq_len}"
 
     accelerator = Accelerator(
         gradient_accumulation_steps=train_config.gradient_accumulation_steps
@@ -127,12 +109,25 @@ def main(save_dir: str) -> None:
     init_fn = partial(init_weights_modern, n_layers=model_config.n_layers)
     model.apply(init_fn)
 
-    tokenized_train_ds = load_from_disk(
-        f"{train_config.tokenized_ds_dir}/train"
-    ).with_format("torch")
-    tokenized_eval_ds = load_from_disk(
-        f"{train_config.tokenized_ds_dir}/eval"
-    ).with_format("torch")
+
+    train_search_path = os.path.join(train_config.tokenized_ds_dir, "*", "train")
+    train_folders = [f for f in glob.glob(train_search_path) if os.path.isdir(f)]
+    if not train_folders:
+        raise FileNotFoundError("Did not find any train data dirs")
+        
+        
+    eval_search_path = os.path.join(train_config.tokenized_ds_dir, "*", "eval")
+    eval_folders = [f for f in glob.glob(eval_search_path) if os.path.isdir(f)]
+    if not eval_folders:
+        raise FileNotFoundError("Did not find any eval data dirs")
+         
+        
+    tokenized_train_ds = concatenate_datasets([
+        load_from_disk(folder) for folder in train_folders
+    ]).with_format("torch")
+    tokenized_eval_ds = concatenate_datasets([
+        load_from_disk(folder) for folder in eval_folders
+    ]).with_format("torch")
 
     collator = partial(packed_collate_fn, eos_token_id=tokenizer.eos_token_id)
 
@@ -141,7 +136,7 @@ def main(save_dir: str) -> None:
         batch_size=train_config.batch_size,
         collate_fn=collator,
         shuffle=True,
-        num_workers=8,
+        num_workers=num_workers,
         pin_memory=True,
     )
     eval_dataloader = torch.utils.data.DataLoader(
@@ -149,7 +144,7 @@ def main(save_dir: str) -> None:
         batch_size=train_config.batch_size,
         collate_fn=collator,
         shuffle=False,
-        num_workers=8,
+        num_workers=num_workers,
         pin_memory=True,
     )
 
@@ -193,12 +188,8 @@ def main(save_dir: str) -> None:
         for step, batch in tqdm(
             enumerate(train_dataloader), total=len(train_dataloader)
         ):
-            with accelerator.accumulate(model):
-                input_pos = get_input_positions(
-                    batch["input_ids"], tokenizer.eos_token_id
-                )
-
-                outputs = model(batch["input_ids"], batch["attention_mask"], input_pos)
+            with accelerator.accumulate(model):                
+                outputs = model(batch["input_ids"], batch["attention_mask"], batch["input_pos"])
                 loss = compute_loss(
                     criterion, outputs, batch["input_ids"], tokenizer.eos_token_id
                 )
