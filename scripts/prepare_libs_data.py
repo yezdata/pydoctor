@@ -13,9 +13,9 @@ from src.cst.code_extractor import CodeExtractor
 
 
 LIBS_DIR = "data/raw/libs"
-PRETRAIN_DIR = "data/tokenized_pretrain"
-FINETUNE_DIR = "data/tokenized_finetune"
 MAX_SEQ_LEN = 2048
+PRETRAIN_DIR = f"data/tokenized_pretrain_seq{MAX_SEQ_LEN}"
+FINETUNE_DIR = "data/tokenized_finetune"
 
 
 REPOS = [
@@ -89,9 +89,13 @@ print(f"Pretrain data len: {len(pretrain_ds)}")
 pretrain_ds_tokenized = tokenize_ds(tokenizer, pretrain_ds, MAX_SEQ_LEN, packing=True)
 del pretrain_ds
 
-data_path = f"{PRETRAIN_DIR}_seq{MAX_SEQ_LEN}"
+split_ds = pretrain_ds_tokenized.train_test_split(test_size=0.01, seed=42)
+
+data_path = f"{PRETRAIN_DIR}/libs"
 os.makedirs(data_path, exist_ok=True)
-pretrain_ds_tokenized.save_to_disk(data_path)
+split_ds["train"].save_to_disk(f"{data_path}/train")
+split_ds["test"].save_to_disk(f"{data_path}/eval")
+
 del pretrain_ds_tokenized
 
 
@@ -120,5 +124,6 @@ del all_extracted_pairs
 finetune_ds_tokenized = tokenize_ds(tokenizer, finetune_ds, MAX_SEQ_LEN, packing=False)
 del finetune_ds
 
+# TODO: train/eval split
 os.makedirs(FINETUNE_DIR, exist_ok=True)
 finetune_ds_tokenized.save_to_disk(FINETUNE_DIR)

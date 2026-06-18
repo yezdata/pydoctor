@@ -11,6 +11,8 @@ wheels/
 # Virtual environments
 .venv
 
+.spyproject/
+
 data/
 models/
 tokenizers/
