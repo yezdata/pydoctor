@@ -16,11 +16,13 @@ def compute_line_stats(code: str) -> dict:
             "alpha_ratio": 0,
             "unique_ratio": 0,
             "num_lines": 0,
+            "char_len": 0,
         }
 
     avg_line_len = np.mean([len(l) for l in non_empty_lines])
     all_chars = "".join(non_empty_lines)
-    alpha_ratio = sum(c.isalpha() for c in all_chars) / max(len(all_chars), 1)
+    char_len = len(all_chars)
+    alpha_ratio = sum(c.isalpha() for c in all_chars) / max(char_len, 1)
     unique_ratio = len(set(non_empty_lines)) / len(non_empty_lines)
 
     return {
@@ -28,6 +30,7 @@ def compute_line_stats(code: str) -> dict:
         "alpha_ratio": alpha_ratio,
         "unique_ratio": unique_ratio,
         "num_lines": len(non_empty_lines),
+        "char_len": char_len,
     }
 
 
@@ -53,6 +56,9 @@ def passes_quality_filter(code: str | dict) -> bool:
 
     # Very low unique line ratio (repetitive boilerplate)
     if stats["unique_ratio"] < 0.1:
+        return False
+
+    if stats["char_len"] > 50_000:
         return False
 
     return True

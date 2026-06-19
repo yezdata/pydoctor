@@ -59,81 +59,91 @@ def process_file(filepath: str) -> list[dict]:
         extractor = CodeExtractor(cst_tree)
         cst_tree.visit(extractor)
         return extractor.extracted_pairs
-    except (cst.ParserSyntaxError, Exception):
+    except (cst.ParserSyntaxError, Exception) as e:
+        print(f"Error processing {filepath}: {e}")
         return []
+
 
 def main():
     config = TokenizerConfig()  # type: ignore
-    
+
     tokenizer = PreTrainedTokenizerFast.from_pretrained(
         f"tokenizers/{config.name}", local_files_only=True
     )
-    
+
     if not os.path.exists(LIBS_DIR):
         os.makedirs(LIBS_DIR, exist_ok=True)
         for repo in REPOS:
             download_and_extract_py(repo, LIBS_DIR)
-    
-    
+
     file_paths = [
-        fp for fp in glob.iglob(f"{LIBS_DIR}/**/*.py", recursive=True) if os.path.isfile(fp)
+        fp
+        for fp in glob.iglob(f"{LIBS_DIR}/**/*.py", recursive=True)
+        if os.path.isfile(fp)
     ]
-    
-    
+
     # PRETRAIN DATASET
     pretrain_list = []
     for path in file_paths:
         txt = read_file(path)
         if txt:
             pretrain_list.append({"text": txt})
-    
+
     pretrain_ds = Dataset.from_list(pretrain_list)
     del pretrain_list
     print(f"Pretrain data len: {len(pretrain_ds)}")
-    
-    pretrain_ds_tokenized = tokenize_ds(tokenizer, pretrain_ds, MAX_SEQ_LEN, tokenizer.eos_token_id, packing=True)
+
+    pretrain_ds_tokenized = tokenize_ds(
+        tokenizer, pretrain_ds, MAX_SEQ_LEN, tokenizer.eos_token_id, packing=True
+    )
     del pretrain_ds
-    
+
     split_ds = pretrain_ds_tokenized.train_test_split(test_size=0.01, seed=42)
-    
+
     data_path = f"{PRETRAIN_DIR}/libs"
     os.makedirs(data_path, exist_ok=True)
     split_ds["train"].save_to_disk(f"{data_path}/train")
     split_ds["test"].save_to_disk(f"{data_path}/eval")
-    
+
     del pretrain_ds_tokenized
-    
-    
+
     # FINETUNE DATASET
     # TODO CODESEARCHNET integrace do FINETUNE preparation
     all_extracted_pairs = []
-    
-    max_workers = os.cpu_count()
-    print(f"Workers: {max_workers}")
-    
-    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+
+    num_workers = min(16, os.cpu_count() or 1)
+    print(f"Workers: {num_workers}")
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
         results = list(
             tqdm(
                 executor.map(process_file, file_paths, chunksize=50),
                 total=len(file_paths),
             )
         )
-    
+
     for file_results in results:
         if file_results:
             all_extracted_pairs.extend(file_results)
-    
+
     print(f"Total parsed pairs: {len(all_extracted_pairs)}")
     finetune_ds = Dataset.from_list(all_extracted_pairs)
     del all_extracted_pairs
-    
-    finetune_ds_tokenized = tokenize_ds(tokenizer, finetune_ds, MAX_SEQ_LEN, tokenizer.eos_token_id, packing=False)
+
+    finetune_ds_tokenized = tokenize_ds(
+        tokenizer,
+        finetune_ds,
+        MAX_SEQ_LEN,
+        tokenizer.eos_token_id,
+        packing=False,
+        num_workers=num_workers,
+    )
     del finetune_ds
-    
+
     # TODO: train/eval split
     os.makedirs(FINETUNE_DIR, exist_ok=True)
     finetune_ds_tokenized.save_to_disk(FINETUNE_DIR)
-    
-    
+
+
 if __name__ == "__main__":
     main()
