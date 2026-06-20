@@ -22,19 +22,17 @@ def main():
         f"tokenizers/{config.name}", local_files_only=True
     )
 
-    # ds1 = load_dataset("angie-chen55/python-github-code", split="train")
-    # ds2 = load_dataset("codeparrot/codeparrot-clean", split="train")
-    # ds3 = load_dataset("bigcode/the-stack-dedup", data_dir="data/python", token=HF_TOKEN, split="train")
+    ds1 = load_dataset("angie-chen55/python-github-code", split="train")
+    ds2 = load_dataset("codeparrot/codeparrot-clean", split="train")
+    ds3 = load_dataset(
+        "bigcode/the-stack-dedup", data_dir="data/python", token=HF_TOKEN, split="train"
+    )
 
-    # ds1 = ds1.select_columns(["code"]).rename_column("code", "text")
-    # ds2 = ds2.select_columns(["content"]).rename_column("content", "text")
-    # ds3 = ds3.select_columns(["content"]).rename_column("content", "text")
+    ds1 = ds1.select_columns(["code"]).rename_column("code", "text")
+    ds2 = ds2.select_columns(["content"]).rename_column("content", "text")
+    ds3 = ds3.select_columns(["content"]).rename_column("content", "text")
 
-    # ds = concatenate_datasets([ds1, ds2, ds3])
-
-    # del ds1, ds2, ds3
-    ds = load_dataset("codeparrot/codeparrot-clean", split="train")
-    ds = ds.select_columns(["content"]).rename_column("content", "text")
+    ds = concatenate_datasets([ds1, ds2, ds3])
 
     num_workers = min(16, os.cpu_count() or 1)
     ds = ds.filter(

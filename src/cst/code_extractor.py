@@ -22,9 +22,9 @@ def get_code_docstring(
         clean_node = node.with_changes(
             body=node.body.with_changes(body=new_body_elements)
         )
-        return module.code_for_node(clean_node), docstring_text
+        return module.code_for_node(clean_node).strip(), docstring_text.strip()
 
-    return module.code_for_node(node), None
+    return module.code_for_node(node).strip(), None
 
 
 class ClassSkeletonTransformer(cst.CSTTransformer):
@@ -66,6 +66,7 @@ class CodeExtractor(cst.CSTVisitor):
     def __init__(self, module: cst.Module):
         self.module = module
         self.class_transformer = ClassSkeletonTransformer()
+        self._class_skeletons = {}
         self.stack = deque()
 
         self.extracted_pairs = []
@@ -79,15 +80,18 @@ class CodeExtractor(cst.CSTVisitor):
 
             parent_class = self.stack[-1]
 
-            self.class_transformer.add_methods = False
-            modified_class = parent_class.visit(self.class_transformer)
-
-            class_code, _ = get_code_docstring(cst.Module([]), modified_class)
+            class_code = self._class_skeletons.get(id(parent_class), "")
             method_code, docstring = get_code_docstring(self.module, node)
+            if not docstring:
+                self.stack.append(node)
+                return False
 
             code = f"{class_code}{method_code}"
         else:
             code, docstring = get_code_docstring(self.module, node)
+            if not docstring:
+                self.stack.append(node)
+                return False
 
         self.extracted_pairs.append({"code": code, "label": docstring})
         self.stack.append(node)
@@ -101,6 +105,15 @@ class CodeExtractor(cst.CSTVisitor):
         modified_node = node.visit(self.class_transformer)
 
         code, docstring = get_code_docstring(cst.Module([]), modified_node)
+        if not docstring:
+            self.stack.append(node)
+            return False
+
+        self.class_transformer.add_methods = False
+        modified_class = node.visit(self.class_transformer)
+        code_without_methods, _ = get_code_docstring(cst.Module([]), modified_class)
+
+        self._class_skeletons[id(node)] = code_without_methods
 
         self.extracted_pairs.append({"code": code, "label": docstring})
         self.stack.append(node)

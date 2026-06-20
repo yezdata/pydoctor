@@ -51,10 +51,16 @@ def read_file(filepath: str) -> str | None:
 
 
 def process_file(filepath: str) -> list[dict]:
-    content = read_file(filepath)
-    if not content or not content.strip():
-        return []
+    import sys
+
+    old_limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(5000)
+
     try:
+        content = read_file(filepath)
+        if not content or not content.strip():
+            return []
+
         cst_tree = cst.parse_module(content)
         extractor = CodeExtractor(cst_tree)
         cst_tree.visit(extractor)
@@ -62,6 +68,8 @@ def process_file(filepath: str) -> list[dict]:
     except (cst.ParserSyntaxError, Exception) as e:
         print(f"Error processing {filepath}: {e}")
         return []
+    finally:
+        sys.setrecursionlimit(old_limit)
 
 
 def main():
@@ -96,7 +104,6 @@ def main():
     pretrain_ds_tokenized = tokenize_ds(
         tokenizer, pretrain_ds, MAX_SEQ_LEN, tokenizer.eos_token_id, packing=True
     )
-    del pretrain_ds
 
     split_ds = pretrain_ds_tokenized.train_test_split(test_size=0.01, seed=42)
 
@@ -104,8 +111,6 @@ def main():
     os.makedirs(data_path, exist_ok=True)
     split_ds["train"].save_to_disk(f"{data_path}/train")
     split_ds["test"].save_to_disk(f"{data_path}/eval")
-
-    del pretrain_ds_tokenized
 
     # FINETUNE DATASET
     # TODO CODESEARCHNET integrace do FINETUNE preparation
@@ -115,16 +120,18 @@ def main():
     print(f"Workers: {num_workers}")
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
-        results = list(
-            tqdm(
-                executor.map(process_file, file_paths, chunksize=50),
-                total=len(file_paths),
-            )
-        )
-
-    for file_results in results:
-        if file_results:
-            all_extracted_pairs.extend(file_results)
+        futures = {executor.submit(process_file, fp): fp for fp in file_paths}
+        for future in tqdm(
+            concurrent.futures.as_completed(futures), total=len(file_paths)
+        ):
+            try:
+                result = future.result(timeout=30)
+                if result:
+                    all_extracted_pairs.extend(result)
+            except concurrent.futures.TimeoutError:
+                print(f"Timeout: {futures[future]}")
+            except Exception as e:
+                print(f"Worker error: {e}")
 
     print(f"Total parsed pairs: {len(all_extracted_pairs)}")
     finetune_ds = Dataset.from_list(all_extracted_pairs)
@@ -138,7 +145,6 @@ def main():
         packing=False,
         num_workers=num_workers,
     )
-    del finetune_ds
 
     # TODO: train/eval split
     os.makedirs(FINETUNE_DIR, exist_ok=True)

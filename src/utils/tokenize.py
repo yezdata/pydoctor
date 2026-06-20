@@ -2,8 +2,7 @@ from transformers import PreTrainedTokenizerFast, BatchEncoding
 from datasets import Dataset, Features, Value, Sequence
 from typing import Generator
 import torch
-
-import os
+from collections import deque
 
 
 def get_input_positions(input_ids: torch.Tensor, eos_token_id: int) -> list[int]:
@@ -30,28 +29,29 @@ def get_input_positions(input_ids: torch.Tensor, eos_token_id: int) -> list[int]
 def packing_generator(
     dataset: Dataset, max_seq_len: int, eos_token_id: int
 ) -> Generator[dict[str, list[int]]]:
-    current_chunk = []
-    current_len = 0
+    buffer = deque()
 
     for sample in dataset:
-        ids = sample["input_ids"]  # type: ignore
-        current_chunk.extend(ids)
-        current_len += len(ids)
+        buffer.extend(sample["input_ids"])  # type: ignore
 
-        while current_len >= max_seq_len:
-            curr_input_ids = current_chunk[:max_seq_len]
+        while len(buffer) >= max_seq_len:
+            chunk = [buffer.popleft() for _ in range(max_seq_len)]
 
-            curr_tensor = torch.tensor(curr_input_ids, dtype=torch.long)
+            curr_tensor = torch.tensor(chunk, dtype=torch.long)
             input_pos = get_input_positions(curr_tensor, eos_token_id)
 
-            yield {"input_ids": curr_input_ids, "input_pos": input_pos}
-            current_chunk = current_chunk[max_seq_len:]
-            current_len -= max_seq_len
+            yield {"input_ids": chunk, "input_pos": input_pos}
 
 
-def tokenize_batch(batch: dict, tokenizer: PreTrainedTokenizerFast) -> BatchEncoding:
+def tokenize_batch(
+    batch: dict, tokenizer: PreTrainedTokenizerFast, packing: bool
+) -> BatchEncoding:
+    if packing:
+        text = [file_txt + tokenizer.eos_token for file_txt in batch["text"]]
+    else:
+        text = batch["text"]
     return tokenizer(
-        [file_txt + tokenizer.eos_token for file_txt in batch["text"]],
+        text,
         add_special_tokens=False,
         padding=False,
         truncation=False,
@@ -67,7 +67,7 @@ def tokenize_ds(
     num_workers: int = 1,
 ) -> Dataset:
     tokenized_ds = ds.map(
-        lambda batch: tokenize_batch(batch, tokenizer),
+        lambda batch: tokenize_batch(batch, tokenizer, packing),
         batched=True,
         batch_size=15000,
         num_proc=num_workers,
