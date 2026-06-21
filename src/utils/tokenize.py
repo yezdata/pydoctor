@@ -27,31 +27,31 @@ def get_input_positions(input_ids: torch.Tensor, eos_token_id: int) -> list[int]
 
 
 def packing_generator(
-    dataset: Dataset, max_seq_len: int, eos_token_id: int
+    dataset: Dataset, max_seq_len: int, tokenizer: PreTrainedTokenizerFast
 ) -> Generator[dict[str, list[int]]]:
     buffer = deque()
 
     for sample in dataset:
-        buffer.extend(sample["input_ids"])  # type: ignore
+        tokens = tokenize_examples(f"{sample['text']}{tokenizer.eos_token}", tokenizer)[
+            "input_ids"
+        ]  # type: ignore
+
+        buffer.extend(tokens)
 
         while len(buffer) >= max_seq_len:
             chunk = [buffer.popleft() for _ in range(max_seq_len)]
-
             curr_tensor = torch.tensor(chunk, dtype=torch.long)
-            input_pos = get_input_positions(curr_tensor, eos_token_id)
+            yield {
+                "input_ids": chunk,
+                "input_pos": get_input_positions(curr_tensor, tokenizer.eos_token_id),
+            }
 
-            yield {"input_ids": chunk, "input_pos": input_pos}
 
-
-def tokenize_batch(
-    batch: dict, tokenizer: PreTrainedTokenizerFast, packing: bool
+def tokenize_examples(
+    example: str, tokenizer: PreTrainedTokenizerFast
 ) -> BatchEncoding:
-    if packing:
-        text = [file_txt + tokenizer.eos_token for file_txt in batch["text"]]
-    else:
-        text = batch["text"]
     return tokenizer(
-        text,
+        example,
         add_special_tokens=False,
         padding=False,
         truncation=False,
@@ -62,30 +62,31 @@ def tokenize_ds(
     tokenizer: PreTrainedTokenizerFast,
     ds: Dataset,
     max_seq_len: int,
-    eos_token_id: int,
     packing: bool = False,
     num_workers: int = 1,
+    batch_size: int = 1000,
 ) -> Dataset:
-    tokenized_ds = ds.map(
-        lambda batch: tokenize_batch(batch, tokenizer, packing),
-        batched=True,
-        batch_size=15000,
-        num_proc=num_workers,
-        remove_columns=["text"],
-    )
+    if packing:
+        features = Features(
+            {
+                "input_ids": Sequence(feature=Value(dtype="int32")),
+                "input_pos": Sequence(feature=Value(dtype="int16")),
+            }
+        )
 
-    if not packing:
+        final_ds = Dataset.from_generator(
+            lambda: packing_generator(ds, max_seq_len, tokenizer),
+            features=features,
+            keep_in_memory=False,
+        )
+        return final_ds
+    else:
+        tokenized_ds = ds.map(
+            lambda batch: tokenize_examples(batch["text"], tokenizer),
+            batched=True,
+            batch_size=batch_size,
+            num_proc=num_workers,
+            remove_columns=["text"],
+            keep_in_memory=True,
+        )
         return tokenized_ds
-
-    features = Features(
-        {
-            "input_ids": Sequence(feature=Value(dtype="int32")),
-            "input_pos": Sequence(feature=Value(dtype="int16")),
-        }
-    )
-
-    final_ds = Dataset.from_generator(
-        lambda: packing_generator(tokenized_ds, max_seq_len, eos_token_id),
-        features=features,
-    )
-    return final_ds

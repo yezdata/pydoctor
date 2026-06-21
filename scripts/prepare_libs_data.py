@@ -73,6 +73,9 @@ def process_file(filepath: str) -> list[dict]:
 
 
 def main():
+    num_workers = min(16, os.cpu_count() or 1)
+    print(f"Workers: {num_workers}")
+
     config = TokenizerConfig()  # type: ignore
 
     tokenizer = PreTrainedTokenizerFast.from_pretrained(
@@ -102,7 +105,13 @@ def main():
     print(f"Pretrain data len: {len(pretrain_ds)}")
 
     pretrain_ds_tokenized = tokenize_ds(
-        tokenizer, pretrain_ds, MAX_SEQ_LEN, tokenizer.eos_token_id, packing=True
+        tokenizer,
+        pretrain_ds,
+        MAX_SEQ_LEN,
+        tokenizer.eos_token_id,
+        packing=True,
+        num_workers=num_workers,
+        batch_size=5000,
     )
 
     split_ds = pretrain_ds_tokenized.train_test_split(test_size=0.01, seed=42)
@@ -115,9 +124,6 @@ def main():
     # FINETUNE DATASET
     # TODO CODESEARCHNET integrace do FINETUNE preparation
     all_extracted_pairs = []
-
-    num_workers = min(16, os.cpu_count() or 1)
-    print(f"Workers: {num_workers}")
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
         futures = {executor.submit(process_file, fp): fp for fp in file_paths}
@@ -141,9 +147,9 @@ def main():
         tokenizer,
         finetune_ds,
         MAX_SEQ_LEN,
-        tokenizer.eos_token_id,
         packing=False,
         num_workers=num_workers,
+        batch_size=5000,
     )
 
     # TODO: train/eval split
