@@ -63,9 +63,10 @@ def tokenize_ds(
     ds: Dataset,
     max_seq_len: int,
     packing: bool = False,
-    num_workers: int = 1,
-    batch_size: int = 1000,
+    num_workers: int | None = None,
+    batch_size: int | None = None,
 ) -> Dataset:
+    """num_workers and batch_size are only used when packing=False"""
     if packing:
         features = Features(
             {
@@ -77,7 +78,7 @@ def tokenize_ds(
         final_ds = Dataset.from_generator(
             lambda: packing_generator(ds, max_seq_len, tokenizer),
             features=features,
-            keep_in_memory=False,
+            keep_in_memory=True,
         )
         return final_ds
     else:

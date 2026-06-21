@@ -67,8 +67,6 @@ def main():
         ds,
         MAX_SEQ_LEN,
         packing=True,
-        num_workers=num_workers,
-        batch_size=5000,
     )
 
     # split_ds = ds.train_test_split(test_size=0.01, seed=42)

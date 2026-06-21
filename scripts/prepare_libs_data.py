@@ -108,10 +108,7 @@ def main():
         tokenizer,
         pretrain_ds,
         MAX_SEQ_LEN,
-        tokenizer.eos_token_id,
         packing=True,
-        num_workers=num_workers,
-        batch_size=5000,
     )
 
     split_ds = pretrain_ds_tokenized.train_test_split(test_size=0.01, seed=42)
