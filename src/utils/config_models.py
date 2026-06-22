@@ -5,6 +5,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class TokenizerConfig(BaseSettings):
     name: str
     eos_token: str
+    sod_token: str
+    eod_token: str
 
     model_config = SettingsConfigDict(
         env_file=".env", extra="ignore", env_prefix="TOKENIZER_"

@@ -4,8 +4,16 @@ from libcst import matchers as m
 from collections import deque
 
 
+def is_property_or_special(node: cst.FunctionDef) -> bool:
+    is_special = node.name.value.startswith("__") and node.name.value.endswith("__")
+    is_property = any(
+        m.matches(deco.decorator, m.Name("property")) for deco in node.decorators
+    )
+    return is_special or is_property
+
+
 def get_code_docstring(
-    module: cst.Module, node: cst.FunctionDef
+    module: cst.Module, node: cst.FunctionDef | cst.ClassDef
 ) -> tuple[str, str | None]:
     body_elements = list(node.body.body)
 
@@ -72,12 +80,18 @@ class CodeExtractor(cst.CSTVisitor):
         self.extracted_pairs = []
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> bool:
-        # is in class, but not __init__ -> method
+        # is in class
         if len(self.stack) > 0 and isinstance(self.stack[-1], cst.ClassDef):
             if node.name.value == "__init__":
                 self.stack.append(node)
                 return False
 
+            # don't extract
+            if is_property_or_special(node):
+                self.stack.append(node)
+                return False
+
+            # not in __init__ -> method
             parent_class = self.stack[-1]
 
             class_code = self._class_skeletons.get(id(parent_class), "")
@@ -86,7 +100,7 @@ class CodeExtractor(cst.CSTVisitor):
                 self.stack.append(node)
                 return False
 
-            code = f"{class_code}{method_code}"
+            code = f"{class_code}\n\n{method_code}"
         else:
             code, docstring = get_code_docstring(self.module, node)
             if not docstring:

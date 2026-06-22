@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import concurrent.futures
 
 from src.utils.preprocessing import download_and_extract_py
+from src.utils.save_tokenizer import get_finetune_tokenizer
 from src.utils.tokenize import tokenize_ds
 from src.utils.config_models import TokenizerConfig
 from src.cst.code_extractor import CodeExtractor
@@ -78,8 +79,8 @@ def main():
 
     config = TokenizerConfig()  # type: ignore
 
-    tokenizer = PreTrainedTokenizerFast.from_pretrained(
-        f"tokenizers/{config.name}", local_files_only=True
+    tokenizer = get_finetune_tokenizer(
+        config,
     )
 
     if not os.path.exists(LIBS_DIR):
@@ -91,35 +92,10 @@ def main():
         fp
         for fp in glob.iglob(f"{LIBS_DIR}/**/*.py", recursive=True)
         if os.path.isfile(fp)
+        and "test" not in os.path.basename(fp).lower()
+        and "test" not in fp.lower()
     ]
 
-    # PRETRAIN DATASET
-    pretrain_list = []
-    for path in file_paths:
-        txt = read_file(path)
-        if txt:
-            pretrain_list.append({"text": txt})
-
-    pretrain_ds = Dataset.from_list(pretrain_list)
-    del pretrain_list
-    print(f"Pretrain data len: {len(pretrain_ds)}")
-
-    pretrain_ds_tokenized = tokenize_ds(
-        tokenizer,
-        pretrain_ds,
-        MAX_SEQ_LEN,
-        packing=True,
-    )
-
-    split_ds = pretrain_ds_tokenized.train_test_split(test_size=0.01, seed=42)
-
-    data_path = f"{PRETRAIN_DIR}/libs"
-    os.makedirs(data_path, exist_ok=True)
-    split_ds["train"].save_to_disk(f"{data_path}/train")
-    split_ds["test"].save_to_disk(f"{data_path}/eval")
-
-    # FINETUNE DATASET
-    # TODO CODESEARCHNET integrace do FINETUNE preparation
     all_extracted_pairs = []
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
@@ -149,7 +125,6 @@ def main():
         batch_size=5000,
     )
 
-    # TODO: train/eval split
     os.makedirs(FINETUNE_DIR, exist_ok=True)
     finetune_ds_tokenized.save_to_disk(FINETUNE_DIR)
 

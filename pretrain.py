@@ -16,6 +16,7 @@ from src.utils.save_load import save_decoder_model
 from src.model.init_weights import init_weights_modern
 from src.model.transformer_blocks import construct_block_diagonal_mask
 from src.model.decoder_arch import DecoderModel
+from src.utils.save_tokenizer import get_pretrain_tokenizer
 
 
 def compute_loss(
@@ -52,7 +53,9 @@ def evaluate(
             if steps_run >= max_eval_steps:
                 break
 
-            outputs = model(batch["input_ids"], batch["attention_mask"], batch["input_pos"])
+            outputs = model(
+                batch["input_ids"], batch["attention_mask"], batch["input_pos"]
+            )
             loss = compute_loss(criterion, outputs, batch["input_ids"], eos_token_id)
 
             total_loss += loss.detach().item()
@@ -72,13 +75,12 @@ def evaluate(
 def packed_collate_fn(batch: list[dict], eos_token_id: int) -> dict[str, torch.Tensor]:
     input_ids = torch.stack([item["input_ids"] for item in batch])  # (B, S)
     input_pos = torch.stack([item["input_pos"] for item in batch])  # (B, S)
-    
+
     is_eos = input_ids == eos_token_id
 
     mask = construct_block_diagonal_mask(is_eos)  # (B, 1, S, S)
 
     return {"input_ids": input_ids, "attention_mask": mask, "input_pos": input_pos}
-
 
 
 def main(save_dir: str) -> None:
@@ -87,14 +89,16 @@ def main(save_dir: str) -> None:
 
     tokenizer_config = TokenizerConfig()  # type: ignore
 
-    tokenizer = PreTrainedTokenizerFast.from_pretrained(
-        f"tokenizers/{tokenizer_config.name}", local_files_only=True
+    tokenizer = get_pretrain_tokenizer(
+        tokenizer_config,
     )
 
     model_config = DecoderConfig(vocab_size=len(tokenizer))  # type: ignore
 
     train_config = PretrainConfig()  # type: ignore
-    train_config.tokenized_ds_dir = f"{train_config.tokenized_ds_dir}{train_config.max_seq_len}"
+    train_config.tokenized_ds_dir = (
+        f"{train_config.tokenized_ds_dir}{train_config.max_seq_len}"
+    )
 
     accelerator = Accelerator(
         gradient_accumulation_steps=train_config.gradient_accumulation_steps
@@ -109,25 +113,22 @@ def main(save_dir: str) -> None:
     init_fn = partial(init_weights_modern, n_layers=model_config.n_layers)
     model.apply(init_fn)
 
-
     train_search_path = os.path.join(train_config.tokenized_ds_dir, "*", "train")
     train_folders = [f for f in glob.glob(train_search_path) if os.path.isdir(f)]
     if not train_folders:
         raise FileNotFoundError("Did not find any train data dirs")
-        
-        
+
     eval_search_path = os.path.join(train_config.tokenized_ds_dir, "*", "eval")
     eval_folders = [f for f in glob.glob(eval_search_path) if os.path.isdir(f)]
     if not eval_folders:
         raise FileNotFoundError("Did not find any eval data dirs")
-         
-        
-    tokenized_train_ds = concatenate_datasets([
-        load_from_disk(folder) for folder in train_folders
-    ]).with_format("torch")
-    tokenized_eval_ds = concatenate_datasets([
-        load_from_disk(folder) for folder in eval_folders
-    ]).with_format("torch")
+
+    tokenized_train_ds = concatenate_datasets(
+        [load_from_disk(folder) for folder in train_folders]
+    ).with_format("torch")
+    tokenized_eval_ds = concatenate_datasets(
+        [load_from_disk(folder) for folder in eval_folders]
+    ).with_format("torch")
 
     collator = partial(packed_collate_fn, eos_token_id=tokenizer.eos_token_id)
 
@@ -188,8 +189,10 @@ def main(save_dir: str) -> None:
         for step, batch in tqdm(
             enumerate(train_dataloader), total=len(train_dataloader)
         ):
-            with accelerator.accumulate(model):                
-                outputs = model(batch["input_ids"], batch["attention_mask"], batch["input_pos"])
+            with accelerator.accumulate(model):
+                outputs = model(
+                    batch["input_ids"], batch["attention_mask"], batch["input_pos"]
+                )
                 loss = compute_loss(
                     criterion, outputs, batch["input_ids"], tokenizer.eos_token_id
                 )
