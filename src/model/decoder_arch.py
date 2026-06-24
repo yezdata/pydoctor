@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from src.model.init_weights import init_weights_modern
 from src.utils.config_models import DecoderConfig
 from src.model.transformer_blocks import RMSNorm, SwiGLU
 from src.model.rope import RotaryPositionalEmbeddings
@@ -81,7 +82,7 @@ class DecoderModel(nn.Module):
         self,
         config: DecoderConfig,
         eos_token_id: int,
-        expected_max_seq_len: int,
+        expected_max_seq_len: int = 4096,
     ):
         super().__init__()
         self.eos_token_id = eos_token_id
@@ -101,6 +102,28 @@ class DecoderModel(nn.Module):
         self.layers = nn.ModuleList(
             [DecoderLayer(config, self.rope) for _ in range(config.n_layers)]
         )
+
+    def resize_token_embeddings(self, new_vocab_size: int) -> None:
+        """
+        In-place resize of token embeddings and head weights for weight tying
+        ! new_vocab_size > old_vocab_size
+
+        """
+        old_embeddings = self.token_embedding
+        assert new_vocab_size <= old_embeddings.num_embeddings
+
+        new_embeddings = nn.Embedding(new_vocab_size, old_embeddings.embedding_dim)
+        init_weights_modern(new_embeddings)
+
+        with torch.no_grad():
+            new_embeddings.weight.data[: old_embeddings.num_embeddings] = (
+                old_embeddings.weight.data
+            )
+        self.token_embedding = new_embeddings
+
+        new_head = nn.Linear(old_embeddings.embedding_dim, new_vocab_size, bias=False)
+        new_head.weight = self.token_embedding.weight
+        self.head = new_head
 
     def forward(
         self,

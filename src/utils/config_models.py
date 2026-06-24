@@ -1,15 +1,22 @@
-from pydantic import model_validator
+from pydantic import model_validator, BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class SpecialTokens(BaseModel):
+    sofd_token: str
+    socd_token: str
+    somd_token: str
 
 
 class TokenizerConfig(BaseSettings):
     name: str
-    eos_token: str
-    sod_token: str
-    eod_token: str
+    spec_tokens: SpecialTokens
 
     model_config = SettingsConfigDict(
-        env_file=".env", extra="ignore", env_prefix="TOKENIZER_"
+        env_file=".env",
+        extra="ignore",
+        env_prefix="TOKENIZER_",
+        env_nested_delimiter="__",
     )
 
 

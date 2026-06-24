@@ -41,9 +41,11 @@ class RotaryPositionalEmbeddings(nn.Module):
             ** (torch.arange(0, self.dim, 2)[: (self.dim // 2)].float() / self.dim)
         )
         self.register_buffer("theta", theta, persistent=False)
-        self.build_rope_cache(self.max_seq_len)
 
-    def build_rope_cache(self, max_seq_len: int = 4096) -> None:
+        init_cache = self.build_rope_cache(self.max_seq_len)
+        self.register_buffer("cache", init_cache, persistent=False)
+
+    def build_rope_cache(self, max_seq_len: int = 4096) -> torch.Tensor:
         # Create position indexes `[0, 1, ..., max_seq_len - 1]`
         seq_idx = torch.arange(
             max_seq_len, dtype=self.theta.dtype, device=self.theta.device
@@ -52,11 +54,9 @@ class RotaryPositionalEmbeddings(nn.Module):
         # Outer product of theta and position index; output tensor has
         # a shape of [max_seq_len, dim // 2]
         idx_theta = torch.einsum("i, j -> ij", seq_idx, self.theta).float()
-
         # cache includes both the cos and sin components and so the output shape is
         # [max_seq_len, dim // 2, 2]
-        cache = torch.stack([torch.cos(idx_theta), torch.sin(idx_theta)], dim=-1)
-        self.register_buffer("cache", cache, persistent=False)
+        return torch.stack([torch.cos(idx_theta), torch.sin(idx_theta)], dim=-1)
 
     def forward(
         self, x: torch.Tensor, *, input_pos: torch.Tensor | None = None
@@ -82,6 +82,15 @@ class RotaryPositionalEmbeddings(nn.Module):
         """
         # input tensor has shape [b, s, n_h, h_d]
         seq_len = x.size(1)
+
+        if input_pos is not None:
+            max_pos = int(input_pos.max().item())
+        else:
+            max_pos = seq_len - 1
+
+        if max_pos >= self.cache.size(0):
+            self.max_seq_len = max_pos + 1
+            self.cache = self.build_rope_cache(self.max_seq_len)
 
         # extract the values based on whether input_pos is set or not
         rope_cache = (

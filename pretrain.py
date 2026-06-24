@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from accelerate import Accelerator
 from accelerate.utils import set_seed
-from transformers import PreTrainedTokenizerFast, get_cosine_schedule_with_warmup
+from transformers import get_cosine_schedule_with_warmup
 from datasets import load_from_disk, concatenate_datasets
 from tqdm import tqdm
 from functools import partial
@@ -12,11 +12,11 @@ import os
 
 from src.utils.config_models import TokenizerConfig
 from src.utils.config_models import DecoderConfig, PretrainConfig
-from src.utils.save_load import save_decoder_model
+from src.utils.save_model import save_decoder_model
 from src.model.init_weights import init_weights_modern
 from src.model.transformer_blocks import construct_block_diagonal_mask
 from src.model.decoder_arch import DecoderModel
-from src.utils.save_tokenizer import get_pretrain_tokenizer
+from src.utils.tokenizer import get_pretrain_tokenizer
 
 
 def compute_loss(
@@ -25,12 +25,15 @@ def compute_loss(
     input_ids: torch.Tensor,
     eos_token_id: int,
 ) -> torch.Tensor:
+    """Mask out loss for tokens after each EOS token in each sequence for packed samples"""
     shift_logits = logits[..., :-1, :].contiguous()
-    shift_targets = input_ids[..., 1:].clone()
+    shift_targets = input_ids[..., 1:]
 
     input_eos_mask = input_ids[..., :-1] == eos_token_id
 
-    shift_targets = torch.where(input_eos_mask, torch.tensor(-100), shift_targets)
+    shift_targets = torch.where(
+        input_eos_mask, torch.tensor(-100, device=input_ids.device), shift_targets
+    )
 
     B, S, V = shift_logits.shape
 
@@ -71,8 +74,8 @@ def evaluate(
     return avg_eval_loss, perplexity
 
 
-# Custom collate_fn pro DataLoader
 def packed_collate_fn(batch: list[dict], eos_token_id: int) -> dict[str, torch.Tensor]:
+    """Custom collate_fn for DataLoader -> compute input_pos + attn_mask"""
     input_ids = torch.stack([item["input_ids"] for item in batch])  # (B, S)
     input_pos = torch.stack([item["input_pos"] for item in batch])  # (B, S)
 
@@ -88,7 +91,6 @@ def main(save_dir: str) -> None:
     num_workers = min(16, os.cpu_count() or 1)
 
     tokenizer_config = TokenizerConfig()  # type: ignore
-
     tokenizer = get_pretrain_tokenizer(
         tokenizer_config,
     )
@@ -101,7 +103,8 @@ def main(save_dir: str) -> None:
     )
 
     accelerator = Accelerator(
-        gradient_accumulation_steps=train_config.gradient_accumulation_steps
+        gradient_accumulation_steps=train_config.gradient_accumulation_steps,
+        mixed_precision="bf16",
     )
 
     model = DecoderModel(
@@ -113,27 +116,21 @@ def main(save_dir: str) -> None:
     init_fn = partial(init_weights_modern, n_layers=model_config.n_layers)
     model.apply(init_fn)
 
-    train_search_path = os.path.join(train_config.tokenized_ds_dir, "*", "train")
+    train_search_path = os.path.join(train_config.tokenized_ds_dir, "*")
     train_folders = [f for f in glob.glob(train_search_path) if os.path.isdir(f)]
     if not train_folders:
         raise FileNotFoundError("Did not find any train data dirs")
 
-    eval_search_path = os.path.join(train_config.tokenized_ds_dir, "*", "eval")
-    eval_folders = [f for f in glob.glob(eval_search_path) if os.path.isdir(f)]
-    if not eval_folders:
-        raise FileNotFoundError("Did not find any eval data dirs")
-
     tokenized_train_ds = concatenate_datasets(
         [load_from_disk(folder) for folder in train_folders]
     ).with_format("torch")
-    tokenized_eval_ds = concatenate_datasets(
-        [load_from_disk(folder) for folder in eval_folders]
-    ).with_format("torch")
+
+    split_ds = tokenized_train_ds.train_test_split(test_size=0.01, seed=6767)
 
     collator = partial(packed_collate_fn, eos_token_id=tokenizer.eos_token_id)
 
     train_dataloader = torch.utils.data.DataLoader(
-        tokenized_train_ds,  # type: ignore
+        split_ds["train"],  # type: ignore
         batch_size=train_config.batch_size,
         collate_fn=collator,
         shuffle=True,
@@ -141,7 +138,7 @@ def main(save_dir: str) -> None:
         pin_memory=True,
     )
     eval_dataloader = torch.utils.data.DataLoader(
-        tokenized_eval_ds,  # type: ignore
+        split_ds["test"],  # type: ignore
         batch_size=train_config.batch_size,
         collate_fn=collator,
         shuffle=False,
@@ -205,7 +202,7 @@ def main(save_dir: str) -> None:
                 running_loss += loss.detach().item()
                 running_steps += 1
 
-            if step % 1000 == 0 and step > 0:
+            if step % 5000 == 0 and step > 0:
                 avg_train_loss = running_loss / running_steps
                 accelerator.print(
                     f"Epoch {epoch + 1} | Step {step} | TRAIN  Loss: {avg_train_loss:.4f}"
@@ -213,7 +210,7 @@ def main(save_dir: str) -> None:
                 running_loss = 0.0
                 running_steps = 0
 
-            if step % 10000 == 0 and step > 0:
+            if step % 20000 == 0 and step > 0:
                 eval_loss, perplexity = evaluate(
                     criterion,
                     model,

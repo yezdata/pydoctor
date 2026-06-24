@@ -2,12 +2,12 @@ import torch.nn as nn
 from src.model.transformer_blocks import RMSNorm
 
 
-def init_weights_modern(module: nn.Module, n_layers: int):
+def init_weights_modern(module: nn.Module, n_layers: int | None = None):
     """Modern initialization for Transformers (RMSNorm, GeGLU / SwiGLU)."""
 
     if isinstance(module, nn.Linear):
         # scale down the init for residual connections
-        if getattr(module, "_is_residual", False):
+        if getattr(module, "_is_residual", False) and n_layers is not None:
             std = 0.02 / ((2 * n_layers) ** 0.5)
         else:
             std = 0.02

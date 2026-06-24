@@ -61,13 +61,15 @@ def tokenize_examples(
 def tokenize_ds(
     tokenizer: PreTrainedTokenizerFast,
     ds: Dataset,
-    max_seq_len: int,
+    max_seq_len: int | None = None,
     packing: bool = False,
     num_workers: int | None = None,
     batch_size: int | None = None,
 ) -> Dataset:
     """num_workers and batch_size are only used when packing=False"""
     if packing:
+        if not max_seq_len:
+            raise ValueError("max_seq_len must be provided when packing=True")
         features = Features(
             {
                 "input_ids": Sequence(feature=Value(dtype="int32")),

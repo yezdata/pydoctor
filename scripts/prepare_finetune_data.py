@@ -1,10 +1,8 @@
 import glob
 import libcst as cst
 from datasets import Dataset
-from transformers import PreTrainedTokenizerFast
 import os
 from tqdm import tqdm
-from dotenv import load_dotenv
 import concurrent.futures
 
 from src.utils.preprocessing import download_and_extract_py
@@ -12,12 +10,6 @@ from src.utils.save_tokenizer import get_finetune_tokenizer
 from src.utils.tokenize import tokenize_ds
 from src.utils.config_models import TokenizerConfig
 from src.cst.code_extractor import CodeExtractor
-
-load_dotenv()
-
-MAX_SEQ_LEN = int(os.getenv("PRETRAIN_MAX_SEQ_LEN"))
-pretrain_dir = os.getenv("PRETRAIN_TOKENIZED_DS_DIR")
-PRETRAIN_DIR = f"{pretrain_dir}{MAX_SEQ_LEN}"
 
 
 LIBS_DIR = "data/raw/libs"

@@ -3,6 +3,8 @@ import libcst as cst
 from libcst import matchers as m
 from collections import deque
 
+from src.utils.config_models import SpecialTokens
+
 
 def is_property_or_special(node: cst.FunctionDef) -> bool:
     is_special = node.name.value.startswith("__") and node.name.value.endswith("__")
@@ -71,13 +73,15 @@ class ClassSkeletonTransformer(cst.CSTTransformer):
 
 
 class CodeExtractor(cst.CSTVisitor):
-    def __init__(self, module: cst.Module):
+    def __init__(self, module: cst.Module, spec_tokens: SpecialTokens, eos_token: int):
         self.module = module
+        self.spec_tokens = spec_tokens
+        self.eos_token = eos_token
         self.class_transformer = ClassSkeletonTransformer()
         self._class_skeletons = {}
         self.stack = deque()
 
-        self.extracted_pairs = []
+        self.extracted_blocks = []
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> bool:
         # is in class
@@ -101,13 +105,21 @@ class CodeExtractor(cst.CSTVisitor):
                 return False
 
             code = f"{class_code}\n\n{method_code}"
+
+            final_text = (
+                f"{code}\n\n{self.spec_tokens.somd_token}{docstring}{self.eos_token}"
+            )
         else:
             code, docstring = get_code_docstring(self.module, node)
             if not docstring:
                 self.stack.append(node)
                 return False
 
-        self.extracted_pairs.append({"code": code, "label": docstring})
+            final_text = (
+                f"{code}\n\n{self.spec_tokens.sofd_token}{docstring}{self.eos_token}"
+            )
+
+        self.extracted_blocks.append({"text": final_text})
         self.stack.append(node)
         return False
 
@@ -118,18 +130,22 @@ class CodeExtractor(cst.CSTVisitor):
         self.class_transformer.add_methods = True
         modified_node = node.visit(self.class_transformer)
 
-        code, docstring = get_code_docstring(cst.Module([]), modified_node)
+        code, docstring = get_code_docstring(cst.Module([]), modified_node)  # type: ignore
         if not docstring:
             self.stack.append(node)
             return False
 
         self.class_transformer.add_methods = False
         modified_class = node.visit(self.class_transformer)
-        code_without_methods, _ = get_code_docstring(cst.Module([]), modified_class)
+        code_without_methods, _ = get_code_docstring(cst.Module([]), modified_class)  # type: ignore
 
         self._class_skeletons[id(node)] = code_without_methods
 
-        self.extracted_pairs.append({"code": code, "label": docstring})
+        final_text = (
+            f"{code}\n\n{self.spec_tokens.socd_token}{docstring}{self.eos_token}"
+        )
+
+        self.extracted_blocks.append({"text": final_text})
         self.stack.append(node)
         return True
 
