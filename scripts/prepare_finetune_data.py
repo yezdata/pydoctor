@@ -76,23 +76,19 @@ def main():
 
     def process_batch_parallel(batch: list[str]) -> list[dict]:
         results = []
-
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=num_workers
-        ) as executor:
-            futures = [
-                executor.submit(parse_code, content, tokenizer_cfg, tokenizer.eos_token)  # type: ignore
-                for content in batch
-            ]
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    result = future.result(timeout=30)
-                    if result:
-                        results.extend(result)
-                except concurrent.futures.TimeoutError:
-                    print("Timeout error while parallel processing")
-                except Exception as e:
-                    print(f"Worker error: {e}")
+        futures = [
+            executor.submit(parse_code, content, tokenizer_cfg, tokenizer.eos_token)  # type: ignore
+            for content in batch
+        ]
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                result = future.result(timeout=30)
+                if result:
+                    results.extend(result)
+            except concurrent.futures.TimeoutError:
+                print("Timeout error while parallel processing")
+            except Exception as e:
+                print(f"Worker error: {e}")
         return results
 
     num_workers = min(16, os.cpu_count() or 1)
@@ -123,48 +119,52 @@ def main():
     all_extracted_blocks = []
     batch = []
 
-    for fp in tqdm(file_paths, total=len(file_paths), desc="Processing libs files"):
-        content = read_file(fp)
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
+        for fp in tqdm(file_paths, total=len(file_paths), desc="Processing libs files"):
+            content = read_file(fp)
 
-        if content:
+            if content:
+                batch.append(content)
+
+            if len(batch) >= BATCH_SIZE:
+                all_extracted_blocks.extend(process_batch_parallel(batch))
+                batch.clear()
+
+        if batch:
+            all_extracted_blocks.extend(process_batch_parallel(batch))
+            batch.clear()
+
+        thestack = load_dataset(
+            "bigcode/the-stack-dedup",
+            data_dir="data/python",
+            token=HF_TOKEN,
+            split="train",
+            streaming=True,
+        )
+        parsed_samples = 0
+        for item in tqdm(
+            thestack, total=THE_STACK_SAMPLES, desc="Processing the-stack-dedup"
+        ):
+            if parsed_samples >= THE_STACK_SAMPLES:
+                break
+
+            content = item.get("content", "")
+
+            if not passes_quality_filter(content):
+                continue
+
             batch.append(content)
+            parsed_samples += 1
 
-        if len(batch) >= BATCH_SIZE:
+            if len(batch) >= BATCH_SIZE:
+                all_extracted_blocks.extend(process_batch_parallel(batch))
+                batch.clear()
+
+        if batch:
             all_extracted_blocks.extend(process_batch_parallel(batch))
             batch.clear()
 
-    if batch:
-        all_extracted_blocks.extend(process_batch_parallel(batch))
-        batch.clear()
-
-    thestack = load_dataset(
-        "bigcode/the-stack-dedup",
-        data_dir="data/python",
-        token=HF_TOKEN,
-        split="train",
-        streaming=True,
-    )
-    for i, item in enumerate(
-        tqdm(thestack, total=THE_STACK_SAMPLES, desc="Processing the-stack-dedup")
-    ):
-        if i >= THE_STACK_SAMPLES:
-            break
-        content = item.get("content", "")
-
-        if not passes_quality_filter(content):
-            continue
-
-        batch.append(content)
-
-        if len(batch) >= BATCH_SIZE:
-            all_extracted_blocks.extend(process_batch_parallel(batch))
-            batch.clear()
-
-    if batch:
-        all_extracted_blocks.extend(process_batch_parallel(batch))
-        batch.clear()
-
-    print(f"Total parsed blocks: {len(all_extracted_blocks)}")
+        print(f"Total parsed blocks: {len(all_extracted_blocks)}")
 
     ds = Dataset.from_list(all_extracted_blocks)
     del all_extracted_blocks
@@ -174,7 +174,7 @@ def main():
         ds,
         packing=False,
         num_workers=num_workers,
-        batch_size=5000,
+        batch_size=BATCH_SIZE,
     )
 
     os.makedirs(train_config.tokenized_ds_dir, exist_ok=True)
