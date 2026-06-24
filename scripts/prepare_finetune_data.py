@@ -1,19 +1,25 @@
 import glob
 import libcst as cst
-from datasets import Dataset
+from datasets import Dataset, load_dataset
 import os
+from dotenv import load_dotenv
 from tqdm import tqdm
 import concurrent.futures
 
-from src.utils.preprocessing import download_and_extract_py
-from src.utils.save_tokenizer import get_finetune_tokenizer
+from src.utils.preprocessing import download_and_extract_py, passes_quality_filter
+from src.utils.tokenizer import get_finetune_tokenizer
 from src.utils.tokenize import tokenize_ds
-from src.utils.config_models import TokenizerConfig
+from src.utils.config_models import TokenizerConfig, FinetuneConfig
 from src.cst.code_extractor import CodeExtractor
 
 
+load_dotenv()
+HF_TOKEN = os.getenv("HF_TOKEN")
+
 LIBS_DIR = "data/raw/libs"
-FINETUNE_DIR = "data/tokenized_finetune"
+
+BATCH_SIZE = 1000
+THE_STACK_SAMPLES = 1000000
 
 
 REPOS = [
@@ -27,6 +33,7 @@ REPOS = [
     "matplotlib/matplotlib",
     "jax-ml/jax",
     "home-assistant/core",
+    "spyder-ide/spyder",
     "scipy/scipy",
     "pallets/flask",
     "tiangolo/fastapi",
@@ -43,37 +50,61 @@ def read_file(filepath: str) -> str | None:
         return None
 
 
-def process_file(filepath: str) -> list[dict]:
+def parse_code(
+    content: str, tokenizer_cfg: TokenizerConfig, eos_token: int
+) -> list[dict]:
     import sys
 
     old_limit = sys.getrecursionlimit()
     sys.setrecursionlimit(5000)
 
     try:
-        content = read_file(filepath)
         if not content or not content.strip():
             return []
 
         cst_tree = cst.parse_module(content)
-        extractor = CodeExtractor(cst_tree)
+        extractor = CodeExtractor(cst_tree, tokenizer_cfg.spec_tokens, eos_token)
         cst_tree.visit(extractor)
-        return extractor.extracted_pairs
-    except (cst.ParserSyntaxError, Exception) as e:
-        print(f"Error processing {filepath}: {e}")
+        return extractor.extracted_blocks
+    except (cst.ParserSyntaxError, Exception):
         return []
     finally:
         sys.setrecursionlimit(old_limit)
 
 
 def main():
+
+    def process_batch_parallel(batch: list[str]) -> list[dict]:
+        results = []
+
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=num_workers
+        ) as executor:
+            futures = [
+                executor.submit(parse_code, content, tokenizer_cfg, tokenizer.eos_token)  # type: ignore
+                for content in batch
+            ]
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    result = future.result(timeout=30)
+                    if result:
+                        results.extend(result)
+                except concurrent.futures.TimeoutError:
+                    print("Timeout error while parallel processing")
+                except Exception as e:
+                    print(f"Worker error: {e}")
+        return results
+
     num_workers = min(16, os.cpu_count() or 1)
     print(f"Workers: {num_workers}")
 
-    config = TokenizerConfig()  # type: ignore
+    tokenizer_cfg = TokenizerConfig()  # type: ignore
 
     tokenizer = get_finetune_tokenizer(
-        config,
+        tokenizer_cfg,
     )
+
+    train_config = FinetuneConfig()  # type:ignore
 
     if not os.path.exists(LIBS_DIR):
         os.makedirs(LIBS_DIR, exist_ok=True)
@@ -86,39 +117,68 @@ def main():
         if os.path.isfile(fp)
         and "test" not in os.path.basename(fp).lower()
         and "test" not in fp.lower()
+        and "init" not in fp.lower()
     ]
 
-    all_extracted_pairs = []
+    all_extracted_blocks = []
+    batch = []
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
-        futures = {executor.submit(process_file, fp): fp for fp in file_paths}
-        for future in tqdm(
-            concurrent.futures.as_completed(futures), total=len(file_paths)
-        ):
-            try:
-                result = future.result(timeout=30)
-                if result:
-                    all_extracted_pairs.extend(result)
-            except concurrent.futures.TimeoutError:
-                print(f"Timeout: {futures[future]}")
-            except Exception as e:
-                print(f"Worker error: {e}")
+    for fp in tqdm(file_paths, total=len(file_paths), desc="Processing libs files"):
+        content = read_file(fp)
 
-    print(f"Total parsed pairs: {len(all_extracted_pairs)}")
-    finetune_ds = Dataset.from_list(all_extracted_pairs)
-    del all_extracted_pairs
+        if content:
+            batch.append(content)
 
-    finetune_ds_tokenized = tokenize_ds(
+        if len(batch) >= BATCH_SIZE:
+            all_extracted_blocks.extend(process_batch_parallel(batch))
+            batch.clear()
+
+    if batch:
+        all_extracted_blocks.extend(process_batch_parallel(batch))
+        batch.clear()
+
+    thestack = load_dataset(
+        "bigcode/the-stack-dedup",
+        data_dir="data/python",
+        token=HF_TOKEN,
+        split="train",
+        streaming=True,
+    )
+    for i, item in enumerate(
+        tqdm(thestack, total=THE_STACK_SAMPLES, desc="Processing the-stack-dedup")
+    ):
+        if i >= THE_STACK_SAMPLES:
+            break
+        content = item.get("content", "")
+
+        if not passes_quality_filter(content):
+            continue
+
+        batch.append(content)
+
+        if len(batch) >= BATCH_SIZE:
+            all_extracted_blocks.extend(process_batch_parallel(batch))
+            batch.clear()
+
+    if batch:
+        all_extracted_blocks.extend(process_batch_parallel(batch))
+        batch.clear()
+
+    print(f"Total parsed blocks: {len(all_extracted_blocks)}")
+
+    ds = Dataset.from_list(all_extracted_blocks)
+    del all_extracted_blocks
+
+    ds_tokenized = tokenize_ds(
         tokenizer,
-        finetune_ds,
-        MAX_SEQ_LEN,
+        ds,
         packing=False,
         num_workers=num_workers,
         batch_size=5000,
     )
 
-    os.makedirs(FINETUNE_DIR, exist_ok=True)
-    finetune_ds_tokenized.save_to_disk(FINETUNE_DIR)
+    os.makedirs(train_config.tokenized_ds_dir, exist_ok=True)
+    ds_tokenized.save_to_disk(train_config.tokenized_ds_dir)
 
 
 if __name__ == "__main__":
