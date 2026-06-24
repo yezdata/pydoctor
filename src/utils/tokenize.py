@@ -1,3 +1,4 @@
+from functools import partial
 from transformers import PreTrainedTokenizerFast, BatchEncoding
 from datasets import Dataset, Features, Value, Sequence
 from typing import Generator
@@ -32,9 +33,9 @@ def packing_generator(
     buffer = deque()
 
     for sample in dataset:
-        tokens = tokenize_examples(f"{sample['text']}{tokenizer.eos_token}", tokenizer)[
-            "input_ids"
-        ]  # type: ignore
+        tokens = tokenize_examples(
+            {"text": f"{sample['text']}{tokenizer.eos_token}"}, tokenizer
+        )["input_ids"]  # type: ignore
 
         buffer.extend(tokens)
 
@@ -48,10 +49,10 @@ def packing_generator(
 
 
 def tokenize_examples(
-    example: str, tokenizer: PreTrainedTokenizerFast
+    example: dict, tokenizer: PreTrainedTokenizerFast
 ) -> BatchEncoding:
     return tokenizer(
-        example,
+        example["text"],
         add_special_tokens=False,
         padding=False,
         truncation=False,
@@ -85,7 +86,8 @@ def tokenize_ds(
         return final_ds
     else:
         tokenized_ds = ds.map(
-            lambda batch: tokenize_examples(batch["text"], tokenizer),
+            tokenize_examples,
+            fn_kwargs={"tokenizer": tokenizer},
             batched=True,
             batch_size=batch_size,
             num_proc=num_workers,

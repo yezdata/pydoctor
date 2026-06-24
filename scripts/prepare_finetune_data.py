@@ -19,7 +19,7 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 LIBS_DIR = "data/raw/libs"
 
 BATCH_SIZE = 1000
-THE_STACK_SAMPLES = 1000000
+THE_STACK_SAMPLES = 1_000_000
 
 
 REPOS = [
@@ -143,7 +143,7 @@ def main():
         )
         parsed_samples = 0
         for item in tqdm(
-            thestack, total=THE_STACK_SAMPLES, desc="Processing the-stack-dedup"
+            iter(thestack), total=THE_STACK_SAMPLES, desc="Processing the-stack-dedup"
         ):
             if parsed_samples >= THE_STACK_SAMPLES:
                 break
