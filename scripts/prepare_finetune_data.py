@@ -1,4 +1,7 @@
 import glob
+import warnings
+warnings.filterwarnings("ignore", category=SyntaxWarning)
+
 import libcst as cst
 from datasets import Dataset, load_dataset
 import os
