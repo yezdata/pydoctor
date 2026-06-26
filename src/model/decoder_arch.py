@@ -110,7 +110,7 @@ class DecoderModel(nn.Module):
 
         """
         old_embeddings = self.token_embedding
-        assert new_vocab_size <= old_embeddings.num_embeddings
+        assert new_vocab_size >= old_embeddings.num_embeddings
 
         new_embeddings = nn.Embedding(new_vocab_size, old_embeddings.embedding_dim)
         init_weights_modern(new_embeddings)

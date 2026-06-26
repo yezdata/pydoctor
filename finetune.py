@@ -21,15 +21,13 @@ def compute_loss(
     criterion: nn.CrossEntropyLoss,
     logits: torch.Tensor,
     input_ids: torch.Tensor,
-    start_token_ids: list[int],
+    start_token_ids: torch.Tensor,
     pad_token_id: int,
 ) -> torch.Tensor:
     shift_logits = logits[..., :-1, :].contiguous()
     shift_targets = input_ids[..., 1:]
 
-    start_mask = torch.isin(
-        input_ids[..., :-1], torch.tensor(start_token_ids, device=input_ids.device)
-    )
+    start_mask = torch.isin(input_ids[..., :-1], start_token_ids)
 
     is_docstring = torch.cumsum(start_mask, dim=-1) > 0
 
@@ -96,20 +94,30 @@ def main(
     with open(f"{pretrain_path}/config.json", "r") as f:
         model_config = DecoderConfig.model_validate_json(f.read())
 
+    model_config.vocab_size = len(tokenizer)
+
     accelerator = Accelerator(
         gradient_accumulation_steps=train_config.gradient_accumulation_steps,
         mixed_precision="bf16",
     )
+
+    spec_tokens = torch.tensor(spec_tokens, device=accelerator.device)
 
     model = DecoderModel(
         config=model_config,
         eos_token_id=tokenizer.eos_token_id,
     )
 
-    model.load_state_dict(
-        load_file(f"{pretrain_path}/model.safetensors", device=accelerator.device),
-        strict=True,
+    state_dict = load_file(
+        f"{pretrain_path}/model.safetensors", device=str(accelerator.device)
     )
+
+    if "token_embedding.weight" not in state_dict and "head.weight" in state_dict:
+        state_dict["token_embedding.weight"] = state_dict["head.weight"]
+    elif "head.weight" not in state_dict and "token_embedding.weight" in state_dict:
+        state_dict["head.weight"] = state_dict["token_embedding.weight"]
+
+    model.load_state_dict(strict=True, state_dict=state_dict)
 
     # account for docstring spec tokens
     model.resize_token_embeddings(len(tokenizer))
@@ -248,7 +256,7 @@ def main(
 
 if __name__ == "__main__":
     SAVE_PATH = "models/v1/finetune"
-    PRETRAIN_PATH = "models/v1/pretrain"
+    PRETRAIN_PATH = "models/v1/pretrain/epoch_1/step_280000"
 
     main(
         save_path=SAVE_PATH,
