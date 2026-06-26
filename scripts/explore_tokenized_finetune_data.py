@@ -28,10 +28,11 @@ max_input_ids = ds['input_ids'].iloc[max_idx]
 max_text = tokenizer.decode(max_input_ids)
 
 print(f"Index of longest sample: {max_idx}")
-print(f"Length: {len(max_input_ids)}")
+print(f"Length of longest sample: {len(max_input_ids)}")
 print("-" * 20)
 print("Content:")
 print(max_text)
 
 
 
+print("Ensure that correct tokenizer is used for decoding. If the decoded text looks incorrect, check the tokenizer configuration.")
