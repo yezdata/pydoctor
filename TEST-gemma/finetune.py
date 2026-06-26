@@ -1,20 +1,28 @@
 import os
+import json
 import torch
+from transformers import AutoModelForCausalLM
 import torch.nn as nn
 from accelerate import Accelerator
 from accelerate.utils import set_seed
-from transformers import get_cosine_schedule_with_warmup, DataCollatorWithPadding
-from safetensors.torch import load_file
+from transformers import (
+    get_cosine_schedule_with_warmup,
+    DataCollatorWithPadding,
+)
 from datasets import load_from_disk, concatenate_datasets
 from tqdm import tqdm
 import glob
 import math
+from dotenv import load_dotenv
 
 from src.utils.tokenizer import get_finetune_tokenizer
 from src.utils.config_models import TokenizerConfig
-from src.utils.config_models import DecoderConfig, FinetuneConfig
+from src.utils.config_models import FinetuneConfig
 from src.model.decoder_arch import DecoderModel
-from src.utils.save_model import save_decoder_model
+
+
+load_dotenv()
+HF_TOKEN = os.getenv("HF_TOKEN", "")
 
 
 def compute_loss(
@@ -60,7 +68,7 @@ def evaluate(
             if steps_run >= max_eval_steps:
                 break
 
-            outputs = model(batch["input_ids"])
+            outputs = model(batch["input_ids"]).logits
             loss = compute_loss(
                 criterion, outputs, batch["input_ids"], start_token_ids, pad_token_id
             )
@@ -80,35 +88,30 @@ def evaluate(
 
 def main(
     save_path: str,
-    pretrain_path: str,
+    model_name: str,
 ) -> None:
     set_seed(1337)
     num_workers = min(16, os.cpu_count() or 1)
 
-    tokenizer_config = TokenizerConfig()  # type: ignore
+    tokenizer_config = TokenizerConfig(name=model_name)  # type: ignore
     tokenizer = get_finetune_tokenizer(tokenizer_config)
+    tokenizer.padding_side = "right"
     spec_tokens = tokenizer.encode(
         list(tokenizer_config.spec_tokens.model_dump().values())
     )
 
-    train_config = FinetuneConfig()  # type:ignore
-
-    with open(f"{pretrain_path}/config.json", "r") as f:
-        model_config = DecoderConfig.model_validate_json(f.read())
+    train_config = FinetuneConfig(tokenized_ds_dir="TEST-gemma/data/tokenized_finetune")  # type:ignore
 
     accelerator = Accelerator(
         gradient_accumulation_steps=train_config.gradient_accumulation_steps,
         mixed_precision="bf16",
     )
 
-    model = DecoderModel(
-        config=model_config,
-        eos_token_id=tokenizer.eos_token_id,
-    )
-
-    model.load_state_dict(
-        load_file(f"{pretrain_path}/model.safetensors", device=accelerator.device),
-        strict=True,
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        torch_dtype=torch.bfloat16,
+        device_map="auto",
+        token=HF_TOKEN,
     )
 
     # account for docstring spec tokens
@@ -192,7 +195,7 @@ def main(
             enumerate(train_dataloader), total=len(train_dataloader)
         ):
             with accelerator.accumulate(model):
-                outputs = model(batch["input_ids"])
+                outputs = model(batch["input_ids"]).logits
 
                 loss = compute_loss(
                     criterion,
@@ -231,15 +234,19 @@ def main(
             f"FINISH EPOCH {epoch + 1} | TRAIN Loss: {avg_train_loss:.4f} | Eval Loss: {eval_loss:.4f} | Perplexity: {perplexity:.4f}"
         )
 
-        save_decoder_model(
-            accelerator,
-            model,
-            f"{save_path}/epoch_{epoch + 1}",
-            model_config,
-            train_config,
-            avg_train_loss,
-            eval_loss,
+        unwrapped_model = accelerator.unwrap_model(model)
+        unwrapped_model.save_pretrained(
+            f"{save_path}/epoch_{epoch + 1}", safe_serialization=True
         )
+
+        with open(f"{save_path}/epoch_{epoch + 1}/train_state.json", "w") as f:
+            json.dump(
+                {"train_loss": avg_train_loss, "eval_loss": eval_loss}, f, indent=4
+            )
+
+        with open(f"{save_path}/epoch_{epoch + 1}/train_config.json", "w") as f:
+            f.write(train_config.model_dump_json(indent=4))
+
         running_loss = 0.0
         running_steps = 0
 
@@ -248,9 +255,9 @@ def main(
 
 if __name__ == "__main__":
     SAVE_PATH = "models/v1/finetune"
-    PRETRAIN_PATH = "models/v1/pretrain"
+    MODEL_NAME = "google/gemma-3-270m"
 
     main(
         save_path=SAVE_PATH,
-        pretrain_path=PRETRAIN_PATH,
+        model_name=MODEL_NAME,
     )
