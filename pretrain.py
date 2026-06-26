@@ -19,6 +19,9 @@ from src.model.decoder_arch import DecoderModel
 from src.utils.tokenizer import get_pretrain_tokenizer
 
 
+SAVE_DIR = "models/v0/pretrain"
+
+
 def compute_loss(
     criterion: nn.CrossEntropyLoss,
     logits: torch.Tensor,
@@ -252,6 +255,4 @@ def main(save_dir: str) -> None:
 
 
 if __name__ == "__main__":
-    SAVE_DIR = "models/v0/pretrain"
-
     main(SAVE_DIR)

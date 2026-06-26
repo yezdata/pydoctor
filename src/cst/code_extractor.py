@@ -17,24 +17,21 @@ def is_property_or_special(node: cst.FunctionDef) -> bool:
 def get_code_docstring(
     module: cst.Module, node: cst.FunctionDef | cst.ClassDef
 ) -> tuple[str, str | None]:
+    """Return the code of the node with docstring stripped and its docstring if present."""
+    docstring = node.get_docstring()
+
+    if docstring is None:
+        return module.code_for_node(node).strip(), None
+
     body_elements = list(node.body.body)
+    new_body = (
+        body_elements[1:]
+        if len(body_elements) > 1
+        else [cst.SimpleStatementLine(body=[cst.Pass()])]
+    )
 
-    if body_elements and m.matches(
-        body_elements[0], m.SimpleStatementLine(body=[m.Expr(value=m.SimpleString())])
-    ):
-        docstring_text = ast.literal_eval(body_elements[0].body[0].value.value)
-
-        new_body_elements = body_elements[1:]
-
-        if not new_body_elements:
-            new_body_elements = [cst.SimpleStatementLine(body=[cst.Pass()])]
-
-        clean_node = node.with_changes(
-            body=node.body.with_changes(body=new_body_elements)
-        )
-        return module.code_for_node(clean_node).strip(), docstring_text.strip()
-
-    return module.code_for_node(node).strip(), None
+    clean_node = node.with_changes(body=node.body.with_changes(body=new_body))
+    return module.code_for_node(clean_node).strip(), docstring.strip()
 
 
 class ClassSkeletonTransformer(cst.CSTTransformer):
@@ -73,10 +70,18 @@ class ClassSkeletonTransformer(cst.CSTTransformer):
 
 
 class CodeExtractor(cst.CSTVisitor):
-    def __init__(self, module: cst.Module, spec_tokens: SpecialTokens, eos_token: int):
+    def __init__(
+        self,
+        module: cst.Module,
+        spec_tokens: SpecialTokens,
+        eos_token: int,
+        extract_docstring: bool = True,
+    ):
         self.module = module
         self.spec_tokens = spec_tokens
         self.eos_token = eos_token
+        self.extract_docstring = extract_docstring
+
         self.class_transformer = ClassSkeletonTransformer()
         self._class_skeletons = {}
         self.stack = deque()
@@ -99,25 +104,30 @@ class CodeExtractor(cst.CSTVisitor):
             parent_class = self.stack[-1]
 
             class_code = self._class_skeletons.get(id(parent_class), "")
+
             method_code, docstring = get_code_docstring(self.module, node)
+
             if not docstring:
                 self.stack.append(node)
                 return False
 
             code = f"{class_code}\n\n{method_code}"
 
-            final_text = (
-                f"{code}\n\n{self.spec_tokens.somd_token}{docstring}{self.eos_token}"
-            )
+            if self.extract_docstring:
+                final_text = f"{code}\n\n{self.spec_tokens.somd_token}{docstring}{self.eos_token}"
+            else:
+                final_text = code
+
         else:
             code, docstring = get_code_docstring(self.module, node)
             if not docstring:
                 self.stack.append(node)
                 return False
 
-            final_text = (
-                f"{code}\n\n{self.spec_tokens.sofd_token}{docstring}{self.eos_token}"
-            )
+            if self.extract_docstring:
+                final_text = f"{code}\n\n{self.spec_tokens.sofd_token}{docstring}{self.eos_token}"
+            else:
+                final_text = code
 
         self.extracted_blocks.append({"text": final_text})
         self.stack.append(node)
@@ -141,9 +151,12 @@ class CodeExtractor(cst.CSTVisitor):
 
         self._class_skeletons[id(node)] = code_without_methods
 
-        final_text = (
-            f"{code}\n\n{self.spec_tokens.socd_token}{docstring}{self.eos_token}"
-        )
+        if self.extract_docstring:
+            final_text = (
+                f"{code}\n\n{self.spec_tokens.socd_token}{docstring}{self.eos_token}"
+            )
+        else:
+            final_text = code
 
         self.extracted_blocks.append({"text": final_text})
         self.stack.append(node)

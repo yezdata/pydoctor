@@ -1,5 +1,6 @@
 import glob
 import warnings
+
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 
 import libcst as cst
@@ -19,6 +20,7 @@ from src.cst.code_extractor import CodeExtractor
 load_dotenv()
 HF_TOKEN = os.getenv("HF_TOKEN")
 
+EXTRACT_DOCSTRING = False
 LIBS_DIR = "data/raw/libs"
 
 BATCH_SIZE = 1000
@@ -54,7 +56,10 @@ def read_file(filepath: str) -> str | None:
 
 
 def parse_code(
-    content: str, tokenizer_cfg: TokenizerConfig, eos_token: int
+    content: str,
+    tokenizer_cfg: TokenizerConfig,
+    eos_token: int,
+    extract_docstring: bool,
 ) -> list[dict]:
     import sys
 
@@ -66,7 +71,9 @@ def parse_code(
             return []
 
         cst_tree = cst.parse_module(content)
-        extractor = CodeExtractor(cst_tree, tokenizer_cfg.spec_tokens, eos_token)
+        extractor = CodeExtractor(
+            cst_tree, tokenizer_cfg.spec_tokens, eos_token, extract_docstring
+        )
         cst_tree.visit(extractor)
         return extractor.extracted_blocks
     except (cst.ParserSyntaxError, Exception):
@@ -80,7 +87,13 @@ def main():
     def process_batch_parallel(batch: list[str]) -> list[dict]:
         results = []
         futures = [
-            executor.submit(parse_code, content, tokenizer_cfg, tokenizer.eos_token)  # type: ignore
+            executor.submit(
+                parse_code,
+                content,
+                tokenizer_cfg,
+                tokenizer.eos_token,  # type: ignore
+                EXTRACT_DOCSTRING,
+            )
             for content in batch
         ]
         for future in concurrent.futures.as_completed(futures):

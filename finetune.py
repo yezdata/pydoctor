@@ -17,6 +17,10 @@ from src.model.decoder_arch import DecoderModel
 from src.utils.save_model import save_decoder_model
 
 
+SAVE_PATH = "models/v1/finetune"
+PRETRAIN_PATH = "models/v1/pretrain/epoch_1/step_280000"
+
+
 def compute_loss(
     criterion: nn.CrossEntropyLoss,
     logits: torch.Tensor,
@@ -45,7 +49,7 @@ def evaluate(
     criterion: nn.CrossEntropyLoss,
     model: DecoderModel,
     dataloader: torch.utils.data.DataLoader,
-    start_token_ids: list[int],
+    start_token_ids: torch.Tensor,
     pad_token_id: int,
     max_eval_steps: int = 100,
 ) -> tuple[float, float]:
@@ -226,7 +230,10 @@ def main(
                 running_loss = 0.0
                 running_steps = 0
 
-        avg_train_loss = running_loss / running_steps
+        if running_steps != 0:
+            avg_train_loss = running_loss / running_steps
+        else:
+            avg_train_loss = loss.detach().item()
         eval_loss, perplexity = evaluate(
             criterion,
             model,
@@ -255,9 +262,6 @@ def main(
 
 
 if __name__ == "__main__":
-    SAVE_PATH = "models/v1/finetune"
-    PRETRAIN_PATH = "models/v1/pretrain/epoch_1/step_280000"
-
     main(
         save_path=SAVE_PATH,
         pretrain_path=PRETRAIN_PATH,

@@ -29,7 +29,7 @@ def get_input_positions(input_ids: torch.Tensor, eos_token_id: int) -> list[int]
 
 def packing_generator(
     dataset: Dataset, max_seq_len: int, tokenizer: PreTrainedTokenizerFast
-) -> Generator[dict[str, list[int]]]:
+) -> Generator[dict[str, list[int]], None, None]:
     buffer = deque()
 
     for sample in dataset:
