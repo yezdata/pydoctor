@@ -11,6 +11,7 @@ class SpecialTokens(BaseModel):
 class TokenizerConfig(BaseSettings):
     name: str
     spec_tokens: SpecialTokens
+    eos_token: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
