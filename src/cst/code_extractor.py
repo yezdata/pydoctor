@@ -116,7 +116,7 @@ class CodeExtractor(cst.CSTVisitor):
             if self.extract_docstring:
                 final_text = f"{code}\n\n{self.spec_tokens.somd_token}{docstring}{self.eos_token}"
             else:
-                final_text = code
+                final_text = f"{code}\n\n{self.spec_tokens.somd_token}"
 
         else:
             code, docstring = get_code_docstring(self.module, node)
@@ -127,7 +127,7 @@ class CodeExtractor(cst.CSTVisitor):
             if self.extract_docstring:
                 final_text = f"{code}\n\n{self.spec_tokens.sofd_token}{docstring}{self.eos_token}"
             else:
-                final_text = code
+                final_text = f"{code}\n\n{self.spec_tokens.sofd_token}"
 
         self.extracted_blocks.append({"text": final_text})
         self.stack.append(node)
@@ -156,7 +156,7 @@ class CodeExtractor(cst.CSTVisitor):
                 f"{code}\n\n{self.spec_tokens.socd_token}{docstring}{self.eos_token}"
             )
         else:
-            final_text = code
+            final_text = f"{code}\n\n{self.spec_tokens.socd_token}"
 
         self.extracted_blocks.append({"text": final_text})
         self.stack.append(node)
