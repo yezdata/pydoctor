@@ -67,7 +67,10 @@ def tokenize_ds(
     num_workers: int | None = None,
     batch_size: int | None = None,
 ) -> Dataset:
-    """num_workers and batch_size are only used when packing=False"""
+    """
+    num_workers and batch_size are only used when packing=False
+    max_seq_len is only used when packing=True
+    """
     if packing:
         if not max_seq_len:
             raise ValueError("max_seq_len must be provided when packing=True")
