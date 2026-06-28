@@ -35,7 +35,7 @@ def get_finetune_tokenizer(
     else:
         tokenizer = get_pretrain_tokenizer(config, hf_token=hf_token)
 
-    spec_tokens = {"extra_special_tokens": config.spec_tokens.model_dump().values()}
+    spec_tokens = {"extra_special_tokens": [*config.spec_tokens.model_dump().values()]}
     tokenizer.add_special_tokens(spec_tokens, replace_extra_special_tokens=False)  # type: ignore
 
     tokenizer.eos_token = config.eos_token

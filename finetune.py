@@ -17,8 +17,8 @@ from src.model.decoder_arch import DecoderModel
 from src.utils.save_model import save_decoder_model
 
 
-SAVE_PATH = "models/v1/finetune"
-PRETRAIN_PATH = "models/v1/pretrain/epoch_1/step_280000"
+SAVE_PATH = "models/v2/finetune"
+BASE_MODEL_PATH = "models/v1/finetune/epoch_1"
 
 
 def compute_loss(
@@ -82,7 +82,7 @@ def evaluate(
 
 def main(
     save_path: str,
-    pretrain_path: str,
+    base_model_path: str,
 ) -> None:
     set_seed(1337)
     num_workers = min(16, os.cpu_count() or 1)
@@ -95,7 +95,7 @@ def main(
 
     train_config = FinetuneConfig()  # type:ignore
 
-    with open(f"{pretrain_path}/config.json", "r") as f:
+    with open(f"{base_model_path}/config.json", "r") as f:
         model_config = DecoderConfig.model_validate_json(f.read())
 
     model_config.vocab_size = len(tokenizer)
@@ -113,7 +113,7 @@ def main(
     )
 
     state_dict = load_file(
-        f"{pretrain_path}/model.safetensors", device=str(accelerator.device)
+        f"{base_model_path}/model.safetensors", device=str(accelerator.device)
     )
 
     if "token_embedding.weight" not in state_dict and "head.weight" in state_dict:
@@ -223,10 +223,14 @@ def main(
                 running_steps += 1
 
             if step % 150 == 0:
-                avg_train_loss = running_loss / running_steps
-                accelerator.print(
-                    f"Epoch {epoch + 1} | Step {step} | TRAIN  Loss: {avg_train_loss:.4f}"
-                )
+                
+                if running_steps != 0:
+                    avg_train_loss = running_loss / running_steps
+                else:
+                    avg_train_loss = loss.detach().item()
+                    accelerator.print(
+                        f"Epoch {epoch + 1} | Step {step} | TRAIN  Loss: {avg_train_loss:.4f}"
+                    )
                 running_loss = 0.0
                 running_steps = 0
 
@@ -264,5 +268,5 @@ def main(
 if __name__ == "__main__":
     main(
         save_path=SAVE_PATH,
-        pretrain_path=PRETRAIN_PATH,
+        base_model_path=BASE_MODEL_PATH,
     )
