@@ -22,8 +22,8 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 
 LIBS_DIR = "data/raw/libs"
 
-BATCH_SIZE = 5000
-THE_STACK_SAMPLES = 100_000
+BATCH_SIZE = 20000
+THE_STACK_SAMPLES = 500_000
 
 
 REPOS = [
@@ -101,7 +101,7 @@ def extract_code(save_path: str) -> None:
                 print(f"Worker error: {e}")
         return results
 
-    num_workers = 16
+    num_workers = 24
     print(f"Workers: {num_workers}")
 
     config = MainConfig.from_yaml("configs.yaml")  # type: ignore
