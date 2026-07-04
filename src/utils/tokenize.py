@@ -34,7 +34,7 @@ def packing_generator(
 
     for sample in dataset:
         tokens = tokenize_examples(
-            {"code": f"{sample['code']}{tokenizer.eos_token}"}, tokenizer
+            {"text": f"{sample['text']}{tokenizer.eos_token}"}, tokenizer
         )["input_ids"]  # type: ignore
 
         buffer.extend(tokens)
@@ -52,7 +52,7 @@ def tokenize_examples(
     example: dict, tokenizer: PreTrainedTokenizerFast
 ) -> BatchEncoding:
     return tokenizer(
-        example["code"],
+        example["text"],
         add_special_tokens=False,
         padding=False,
         truncation=False,
@@ -94,7 +94,7 @@ def tokenize_ds(
             batched=True,
             batch_size=batch_size,
             num_proc=num_workers,
-            remove_columns=["code"],
+            remove_columns=["text"],
             keep_in_memory=True,
         )
         return tokenized_ds

@@ -32,8 +32,8 @@ MAX_RETRIES = 5
 MODEL = "mistralai/mistral-small-2603"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
-OPENROUTER_API_KEY: str = os.environ.get("OPENROUTER_API_KEY", "")
-EOS_TOKEN: str = os.environ.get("TOKENIZER_EOS_TOKEN", "")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+EOS_TOKEN = os.environ.get("TOKENIZER_EOS_TOKEN", "")
 
 TOTAL_INPUT_TOKENS = 0
 TOTAL_OUTPUT_TOKENS = 0
