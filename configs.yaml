@@ -1,0 +1,32 @@
+tokenizer:
+  name: "bigcode/starcoder2-15b"
+  eos_token: "<|endoftext|>"
+  spec_tokens:
+    docstring_start_token: "<startofdocstring>"
+    docstring_placeholder_token: "<docstring_place>"
+
+decoder:
+  d_model: 768
+  n_head: 12
+  n_layers: 12
+  d_ffn: 3072
+  dropout: 0.1
+
+pretrain:
+  tokenized_ds_dir: "data/pretrain/tokenized_codeparrot_starcoder2_seq2048"
+  max_seq_len: 2048
+  lr: 6e-4
+  lr_warmup: 0.02
+  weight_decay: 0.01
+  batch_size: 12
+  gradient_accumulation_steps: 64
+  num_epochs: 1
+
+finetune:
+  tokenized_ds_dir: "data/finetune/tokenized_synthetic_the_stack_libs_starcoder2"
+  lr: 2e-5
+  lr_warmup: 0.05
+  weight_decay: 0.01
+  batch_size: 2
+  gradient_accumulation_steps: 32
+  num_epochs: 1

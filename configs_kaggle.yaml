@@ -1,0 +1,15 @@
+tokenizer:
+  name: "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+  eos_token: "<|endoftext|>"
+  spec_tokens:
+    docstring_start_token: ""
+    docstring_placeholder_token: "<docstring_place>"
+
+finetune:
+  tokenized_ds_dir: "/kaggle/input/datasets/vclavje/tokenized-synthetic-the-stack-libs-instruct/"
+  lr: 1e-4
+  lr_warmup: 0.05
+  weight_decay: 0.01
+  batch_size: 8
+  gradient_accumulation_steps: 8
+  num_epochs: 3

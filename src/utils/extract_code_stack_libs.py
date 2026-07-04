@@ -13,14 +13,13 @@ import concurrent.futures
 from src.utils.preprocessing import download_and_extract_py, passes_quality_filter
 from src.utils.tokenizer import get_finetune_tokenizer
 from src.utils.tokenize import tokenize_ds
-from src.utils.config_models import TokenizerConfig, FinetuneConfig
+from src.utils.config_models import MainConfig
 from src.cst.code_extractor import CodeExtractor
 
 
 load_dotenv()
 HF_TOKEN = os.getenv("HF_TOKEN")
 
-EXTRACT_DOCSTRING = False
 LIBS_DIR = "data/raw/libs"
 
 BATCH_SIZE = 1000
@@ -55,12 +54,7 @@ def read_file(filepath: str) -> str | None:
         return None
 
 
-def parse_code(
-    content: str,
-    tokenizer_cfg: TokenizerConfig,
-    eos_token: int,
-    extract_docstring: bool,
-) -> list[dict]:
+def parse_code(content: str, docstring_token: str) -> list[dict]:
     import sys
 
     old_limit = sys.getrecursionlimit()
@@ -72,7 +66,7 @@ def parse_code(
 
         cst_tree = cst.parse_module(content)
         extractor = CodeExtractor(
-            cst_tree, tokenizer_cfg.spec_tokens, eos_token, extract_docstring
+            extraction_options="with_docstring", docstring_token=docstring_token
         )
         cst_tree.visit(extractor)
         return extractor.extracted_blocks
@@ -82,7 +76,7 @@ def parse_code(
         sys.setrecursionlimit(old_limit)
 
 
-def main():
+def extract_code(save_path: str) -> None:
 
     def process_batch_parallel(batch: list[str]) -> list[dict]:
         results = []
@@ -90,9 +84,7 @@ def main():
             executor.submit(
                 parse_code,
                 content,
-                tokenizer_cfg,
-                tokenizer.eos_token,  # type: ignore
-                EXTRACT_DOCSTRING,
+                config.tokenizer.spec_tokens.docstring_placeholder_token,
             )
             for content in batch
         ]
@@ -110,13 +102,7 @@ def main():
     num_workers = min(16, os.cpu_count() or 1)
     print(f"Workers: {num_workers}")
 
-    tokenizer_cfg = TokenizerConfig()  # type: ignore
-
-    tokenizer = get_finetune_tokenizer(
-        tokenizer_cfg,
-    )
-
-    train_config = FinetuneConfig()  # type:ignore
+    config = MainConfig.from_yaml("configs.yaml")  # type: ignore
 
     if not os.path.exists(LIBS_DIR):
         os.makedirs(LIBS_DIR, exist_ok=True)
@@ -185,17 +171,5 @@ def main():
     ds = Dataset.from_list(all_extracted_blocks)
     del all_extracted_blocks
 
-    ds_tokenized = tokenize_ds(
-        tokenizer,
-        ds,
-        packing=False,
-        num_workers=num_workers,
-        batch_size=BATCH_SIZE,
-    )
-
-    os.makedirs(train_config.tokenized_ds_dir, exist_ok=True)
-    ds_tokenized.save_to_disk(train_config.tokenized_ds_dir)
-
-
-if __name__ == "__main__":
-    main()
+    os.makedirs(save_path, exist_ok=True)
+    ds.save_to_disk(save_path)

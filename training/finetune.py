@@ -5,20 +5,18 @@ from accelerate import Accelerator
 from accelerate.utils import set_seed
 from transformers import get_cosine_schedule_with_warmup, DataCollatorWithPadding
 from safetensors.torch import load_file
-from datasets import load_from_disk, concatenate_datasets
+from datasets import load_from_disk
 from tqdm import tqdm
-import glob
 import math
 
 from src.utils.tokenizer import get_finetune_tokenizer
-from src.utils.config_models import TokenizerConfig
-from src.utils.config_models import DecoderConfig, FinetuneConfig
+from src.utils.config_models import MainConfig, DecoderConfig
 from src.model.decoder_arch import DecoderModel
 from src.utils.save_model import save_decoder_model
 
 
 SAVE_PATH = "models/v2/finetune"
-BASE_MODEL_PATH = "models/v1/finetune/epoch_1"
+BASE_MODEL_PATH = "models/v1/pretrain/epoch_1/step_280000"
 
 
 def compute_loss(
@@ -87,25 +85,31 @@ def main(
     set_seed(1337)
     num_workers = min(16, os.cpu_count() or 1)
 
-    tokenizer_config = TokenizerConfig()  # type: ignore
-    tokenizer = get_finetune_tokenizer(tokenizer_config)
-    spec_tokens = tokenizer.encode(
-        list(tokenizer_config.spec_tokens.model_dump().values())
+    config = MainConfig.from_yaml("configs.yaml")
+    tokenizer = get_finetune_tokenizer(
+        config.tokenizer,
     )
-
-    train_config = FinetuneConfig()  # type:ignore
 
     with open(f"{base_model_path}/config.json", "r") as f:
         model_config = DecoderConfig.model_validate_json(f.read())
 
-    model_config.vocab_size = len(tokenizer)
+    config.decoder = model_config
+    config.decoder.vocab_size = len(tokenizer)
+
+    with open(f"{save_path}/config.json", "w") as f:
+        f.write(config.model_dump_json(indent=4))
 
     accelerator = Accelerator(
-        gradient_accumulation_steps=train_config.gradient_accumulation_steps,
+        gradient_accumulation_steps=config.finetune.gradient_accumulation_steps,
         mixed_precision="bf16",
     )
 
-    spec_tokens = torch.tensor(spec_tokens, device=accelerator.device)
+    loss_start_token_ids = torch.tensor(
+        tokenizer.encode(
+            config.tokenizer.spec_tokens.docstring_start_token, add_special_tokens=False
+        ),
+        device=accelerator.device,
+    )
 
     model = DecoderModel(
         config=model_config,
@@ -132,7 +136,7 @@ def main(
     accelerator.print(f"Total parameters: {total_params:,}")
     accelerator.print(f"Trainable parameters: {trainable_params:,}")
 
-    tokenized_train_ds = load_from_disk(train_config.tokenized_ds_dir).with_format(
+    tokenized_train_ds = load_from_disk(config.finetune.tokenized_ds_dir).with_format(
         "torch"
     )
 
@@ -154,7 +158,7 @@ def main(
 
     train_dataloader = torch.utils.data.DataLoader(
         split_ds["train"],  # type: ignore
-        batch_size=train_config.batch_size,
+        batch_size=config.finetune.batch_size,
         shuffle=True,
         num_workers=num_workers,
         pin_memory=True,
@@ -162,7 +166,7 @@ def main(
     )
     eval_dataloader = torch.utils.data.DataLoader(
         split_ds["test"],  # type: ignore
-        batch_size=train_config.batch_size,
+        batch_size=config.finetune.batch_size,
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
@@ -172,8 +176,8 @@ def main(
     optimizer = torch.optim.AdamW(
         model.parameters(),
         fused=True,
-        lr=train_config.lr,
-        weight_decay=train_config.weight_decay,
+        lr=config.finetune.lr,
+        weight_decay=config.finetune.weight_decay,
     )
 
     model, optimizer, train_dataloader, eval_dataloader = accelerator.prepare(
@@ -181,12 +185,12 @@ def main(
     )
 
     total_steps = (
-        len(train_dataloader) * train_config.num_epochs
-    ) // train_config.gradient_accumulation_steps
+        len(train_dataloader) * config.finetune.num_epochs
+    ) // config.finetune.gradient_accumulation_steps
 
     lr_scheduler = get_cosine_schedule_with_warmup(
         optimizer,
-        num_warmup_steps=int(total_steps * train_config.lr_warmup),
+        num_warmup_steps=int(total_steps * config.finetune.lr_warmup),
         num_training_steps=total_steps,
     )
     lr_scheduler = accelerator.prepare(lr_scheduler)
@@ -197,7 +201,7 @@ def main(
     running_loss = 0.0
     running_steps = 0
 
-    for epoch in range(train_config.num_epochs):
+    for epoch in range(config.finetune.num_epochs):
         model.train()
 
         for step, batch in tqdm(
@@ -210,7 +214,7 @@ def main(
                     criterion,
                     outputs,
                     batch["input_ids"],
-                    spec_tokens,
+                    loss_start_token_ids,
                     tokenizer.pad_token_id,
                 )
 
@@ -223,7 +227,6 @@ def main(
                 running_steps += 1
 
             if step % 150 == 0:
-                
                 if running_steps != 0:
                     avg_train_loss = running_loss / running_steps
                 else:
@@ -242,10 +245,12 @@ def main(
             criterion,
             model,
             eval_dataloader,
-            spec_tokens,
+            loss_start_token_ids,
             pad_token_id=tokenizer.pad_token_id,
             max_eval_steps=100,
         )
+        model.train()
+
         accelerator.print(
             f"FINISH EPOCH {epoch + 1} | TRAIN Loss: {avg_train_loss:.4f} | Eval Loss: {eval_loss:.4f} | Perplexity: {perplexity:.4f}"
         )
@@ -254,15 +259,11 @@ def main(
             accelerator,
             model,
             f"{save_path}/epoch_{epoch + 1}",
-            model_config,
-            train_config,
             avg_train_loss,
             eval_loss,
         )
         running_loss = 0.0
         running_steps = 0
-
-        model.train()
 
 
 if __name__ == "__main__":

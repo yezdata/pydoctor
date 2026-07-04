@@ -10,6 +10,9 @@ import httpx
 from datasets import Dataset
 from dotenv import load_dotenv
 
+from src.utils.extract_code_stack_libs import extract_code
+
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -19,8 +22,7 @@ log = logging.getLogger(__name__)
 
 load_dotenv()
 
-INPUT_DS_PATH = "data/raw/the_stack_libs_code_only"
-OUTPUT_DS_PATH = "data/synthetic_docstring_ds"
+EXTRACTED_CODE_PATH = "data/extracted/the_stack_libs_code"
 BATCHES_DIR = "data/synthetic_batches"
 
 BATCH_SIZE = 10
@@ -108,7 +110,7 @@ async def _call_api(
                 usage = data.get("usage", {})
                 prompt_tokens = usage.get("prompt_tokens", 0)
                 completion_tokens = usage.get("completion_tokens", 0)
-                
+
                 return docstrings, prompt_tokens, completion_tokens
 
             except (httpx.HTTPStatusError, httpx.RequestError) as exc:
@@ -156,7 +158,9 @@ async def _process_batch(
     str_keys = [str(idx) for idx in batch_indices]
     batch_payload = dict(zip(str_keys, batch_texts))
 
-    docstrings, prompt_tokens, completion_tokens = await _call_api(client, batch_payload, semaphore)
+    docstrings, prompt_tokens, completion_tokens = await _call_api(
+        client, batch_payload, semaphore
+    )
     TOTAL_INPUT_TOKENS += prompt_tokens
     TOTAL_OUTPUT_TOKENS += completion_tokens
 
@@ -173,13 +177,18 @@ async def _process_batch(
             docstring = docstrings.get(str_idx, "")
             if not docstring:
                 log.warning(
-                    "No docstring returned for index %d — marking as failed.", global_idx
+                    "No docstring returned for index %d — marking as failed.",
+                    global_idx,
                 )
                 batch_failed.append(global_idx)
                 continue
             batch_results[global_idx] = f"{code_text}{docstring}{eos_token}"
             if global_idx % 10 == 0:
-                log.info("Token usage so far — Input: %d, Output: %d", TOTAL_INPUT_TOKENS, TOTAL_OUTPUT_TOKENS)
+                log.info(
+                    "Token usage so far — Input: %d, Output: %d",
+                    TOTAL_INPUT_TOKENS,
+                    TOTAL_OUTPUT_TOKENS,
+                )
 
     batch_file = batches_dir / f"batch_{batch_idx}.json"
     batch_data = {
@@ -208,9 +217,10 @@ async def main(eos_token: str = EOS_TOKEN) -> None:
             "  export OPENROUTER_API_KEY=sk-or-..."
         )
 
-    log.info("Loading dataset from '%s' …", INPUT_DS_PATH)
-    ds: Dataset = Dataset.load_from_disk(INPUT_DS_PATH)
-    texts: list[str] = ds["text"]
+    extract_code(EXTRACTED_CODE_PATH)
+
+    ds = Dataset.load_from_disk(EXTRACTED_CODE_PATH)
+    texts = ds["code"]
     total = len(texts)
     log.info("Loaded %d samples.", total)
 
@@ -237,7 +247,7 @@ async def main(eos_token: str = EOS_TOKEN) -> None:
                 b_idx = batch_data["batch_idx"]
                 b_results = batch_data.get("results", {})
                 b_failed = batch_data.get("failed_indices", [])
-                
+
                 for k, v in b_results.items():
                     results[int(k)] = v
                 failed_indices.extend(b_failed)
@@ -246,7 +256,11 @@ async def main(eos_token: str = EOS_TOKEN) -> None:
             log.warning("Failed to load completed batch from '%s': %s", batch_file, e)
 
     if completed_batches:
-        log.info("Loaded %d completed batches from '%s'.", len(completed_batches), batches_dir)
+        log.info(
+            "Loaded %d completed batches from '%s'.",
+            len(completed_batches),
+            batches_dir,
+        )
 
     semaphore = asyncio.Semaphore(MAX_CONCURRENT)
     t0 = time.perf_counter()
@@ -282,20 +296,14 @@ async def main(eos_token: str = EOS_TOKEN) -> None:
         len(results),
         len(failed_indices),
     )
-    log.info("Total tokens used — Input: %d, Output: %d", TOTAL_INPUT_TOKENS, TOTAL_OUTPUT_TOKENS)
-
-    merged_texts: list[str] = [results[idx] for idx in all_indices if idx in results]
-    log.info("Output dataset will contain %d samples.", len(merged_texts))
-
-    out_path = Path(OUTPUT_DS_PATH)
-    out_path.mkdir(parents=True, exist_ok=True)
-
-    out_ds = Dataset.from_dict({"text": merged_texts})
-    out_ds.save_to_disk(str(out_path))
-    log.info("Dataset saved to '%s'.", out_path)
+    log.info(
+        "Total tokens used — Input: %d, Output: %d",
+        TOTAL_INPUT_TOKENS,
+        TOTAL_OUTPUT_TOKENS,
+    )
 
     if failed_indices:
-        failed_log = out_path / "failed_indices.json"
+        failed_log = batches_dir / "failed_indices.json"
         unique_failed = sorted(list(set(failed_indices)))
         with open(failed_log, "w") as f:
             json.dump(unique_failed, f, indent=2)

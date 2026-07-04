@@ -9,12 +9,14 @@ dependencies = [
     "datasets>=5.0.0",
     "libcst>=1.8.6",
     "matplotlib>=3.11.0",
+    "optimum-onnx[onnxruntime]>=0.1.0",
+    "peft>=0.19.1",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
     "requests>=2.34.2",
     "torch>=2.12.0",
     "tqdm>=4.68.2",
-    "transformers>=5.12.0",
+    "transformers>=4.53.3",
 ]
 
 [tool.pyright]
@@ -33,4 +35,9 @@ explicit = true
 [tool.uv.sources]
 torch = [
   { index = "pytorch-cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.3.0",
 ]

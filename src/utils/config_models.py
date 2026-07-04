@@ -1,28 +1,21 @@
 from pydantic import model_validator, BaseModel
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
+import yaml
 
 
 class SpecialTokens(BaseModel):
-    sofd_token: str
-    socd_token: str
-    somd_token: str
+    docstring_placeholder_token: str
+    docstring_start_token: str
 
 
-class TokenizerConfig(BaseSettings):
+class TokenizerConfig(BaseModel):
     name: str
-    spec_tokens: SpecialTokens
     eos_token: str
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        extra="ignore",
-        env_prefix="TOKENIZER_",
-        env_nested_delimiter="__",
-    )
+    spec_tokens: SpecialTokens
 
 
-class DecoderConfig(BaseSettings):
-    vocab_size: int
+class DecoderConfig(BaseModel):
+    vocab_size: int = -1
 
     d_model: int
     n_head: int
@@ -39,12 +32,8 @@ class DecoderConfig(BaseSettings):
             )
         return self
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_prefix="DECODER_", extra="ignore"
-    )
 
-
-class PretrainConfig(BaseSettings):
+class PretrainConfig(BaseModel):
     tokenized_ds_dir: str
 
     max_seq_len: int
@@ -58,12 +47,8 @@ class PretrainConfig(BaseSettings):
     gradient_accumulation_steps: int
     num_epochs: int
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_prefix="PRETRAIN_", extra="ignore"
-    )
 
-
-class FinetuneConfig(BaseSettings):
+class FinetuneConfig(BaseModel):
     tokenized_ds_dir: str
 
     lr: float
@@ -75,6 +60,15 @@ class FinetuneConfig(BaseSettings):
     gradient_accumulation_steps: int
     num_epochs: int
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_prefix="FINETUNE_", extra="ignore"
-    )
+
+class MainConfig(BaseModel):
+    tokenizer: TokenizerConfig
+    decoder: DecoderConfig
+    pretrain: PretrainConfig
+    finetune: FinetuneConfig
+
+    @classmethod
+    def from_yaml(cls, yaml_path: str | Path) -> "MainConfig":
+        with open(yaml_path, "r") as f:
+            config_dict = yaml.safe_load(f)
+        return cls(**config_dict)

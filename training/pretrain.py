@@ -10,8 +10,7 @@ import glob
 import math
 import os
 
-from src.utils.config_models import TokenizerConfig
-from src.utils.config_models import DecoderConfig, PretrainConfig
+from src.utils.config_models import MainConfig
 from src.utils.save_model import save_decoder_model
 from src.model.init_weights import init_weights_modern
 from src.model.transformer_blocks import construct_block_diagonal_mask
@@ -19,7 +18,7 @@ from src.model.decoder_arch import DecoderModel
 from src.utils.tokenizer import get_pretrain_tokenizer
 
 
-SAVE_DIR = "models/v0/pretrain"
+SAVE_DIR = "models/v1/pretrain"
 
 
 def compute_loss(
@@ -93,33 +92,35 @@ def main(save_dir: str) -> None:
     set_seed(6767)
     num_workers = min(16, os.cpu_count() or 1)
 
-    tokenizer_config = TokenizerConfig()  # type: ignore
+    config = MainConfig.from_yaml("configs.yaml")
     tokenizer = get_pretrain_tokenizer(
-        tokenizer_config,
+        config.tokenizer,
     )
 
-    model_config = DecoderConfig(vocab_size=len(tokenizer))  # type: ignore
+    config.decoder.vocab_size = len(tokenizer)
 
-    train_config = PretrainConfig()  # type: ignore
-    train_config.tokenized_ds_dir = (
-        f"{train_config.tokenized_ds_dir}{train_config.max_seq_len}"
+    config.pretrain.tokenized_ds_dir = (
+        f"{config.pretrain.tokenized_ds_dir}{config.pretrain.max_seq_len}"
     )
+
+    with open(f"{save_dir}/config.json", "w") as f:
+        f.write(config.model_dump_json(indent=4))
 
     accelerator = Accelerator(
-        gradient_accumulation_steps=train_config.gradient_accumulation_steps,
+        gradient_accumulation_steps=config.pretrain.gradient_accumulation_steps,
         mixed_precision="bf16",
     )
 
     model = DecoderModel(
-        config=model_config,
+        config=config.decoder,
         eos_token_id=tokenizer.eos_token_id,
-        expected_max_seq_len=train_config.max_seq_len,
+        expected_max_seq_len=config.pretrain.max_seq_len,
     )
 
-    init_fn = partial(init_weights_modern, n_layers=model_config.n_layers)
+    init_fn = partial(init_weights_modern, n_layers=config.decoder.n_layers)
     model.apply(init_fn)
 
-    train_search_path = os.path.join(train_config.tokenized_ds_dir, "*")
+    train_search_path = os.path.join(config.pretrain.tokenized_ds_dir, "*")
     train_folders = [f for f in glob.glob(train_search_path) if os.path.isdir(f)]
     if not train_folders:
         raise FileNotFoundError("Did not find any train data dirs")
@@ -134,7 +135,7 @@ def main(save_dir: str) -> None:
 
     train_dataloader = torch.utils.data.DataLoader(
         split_ds["train"],  # type: ignore
-        batch_size=train_config.batch_size,
+        batch_size=config.pretrain.batch_size,
         collate_fn=collator,
         shuffle=True,
         num_workers=num_workers,
@@ -142,7 +143,7 @@ def main(save_dir: str) -> None:
     )
     eval_dataloader = torch.utils.data.DataLoader(
         split_ds["test"],  # type: ignore
-        batch_size=train_config.batch_size,
+        batch_size=config.pretrain.batch_size,
         collate_fn=collator,
         shuffle=False,
         num_workers=num_workers,
@@ -158,8 +159,8 @@ def main(save_dir: str) -> None:
     optimizer = torch.optim.AdamW(
         model.parameters(),
         fused=True,
-        lr=train_config.lr,
-        weight_decay=train_config.weight_decay,
+        lr=config.pretrain.lr,
+        weight_decay=config.pretrain.weight_decay,
     )
 
     model, optimizer, train_dataloader, eval_dataloader = accelerator.prepare(
@@ -167,12 +168,12 @@ def main(save_dir: str) -> None:
     )
 
     total_steps = (
-        len(train_dataloader) * train_config.num_epochs
-    ) // train_config.gradient_accumulation_steps
+        len(train_dataloader) * config.pretrain.num_epochs
+    ) // config.pretrain.gradient_accumulation_steps
 
     lr_scheduler = get_cosine_schedule_with_warmup(
         optimizer,
-        num_warmup_steps=int(total_steps * train_config.lr_warmup),
+        num_warmup_steps=int(total_steps * config.pretrain.lr_warmup),
         num_training_steps=total_steps,
     )
     lr_scheduler = accelerator.prepare(lr_scheduler)
@@ -183,7 +184,7 @@ def main(save_dir: str) -> None:
     running_loss = 0.0
     running_steps = 0
 
-    for epoch in range(train_config.num_epochs):
+    for epoch in range(config.pretrain.num_epochs):
         model.train()
 
         for step, batch in tqdm(
@@ -221,6 +222,8 @@ def main(save_dir: str) -> None:
                     tokenizer.eos_token_id,
                     max_eval_steps=100,
                 )
+                model.train()
+
                 accelerator.print(
                     f"CHECKPOINT {step} | TRAIN Loss: {loss.item():.4f} | Eval Loss: {eval_loss:.4f} | Perplexity: {perplexity:.4f}"
                 )
@@ -231,16 +234,12 @@ def main(save_dir: str) -> None:
                     accelerator,
                     model,
                     step_path,
-                    model_config,
-                    train_config,
                     loss.item(),
                     eval_loss,
                 )
 
-                model.train()
-
         epoch_path = f"{save_dir}/epoch_{epoch + 1}"
-        save_decoder_model(accelerator, model, epoch_path, model_config, train_config)
+        save_decoder_model(accelerator, model, epoch_path)
 
         eval_loss, perplexity = evaluate(
             criterion,
@@ -252,6 +251,7 @@ def main(save_dir: str) -> None:
         accelerator.print(
             f"FINISH EPOCH {epoch + 1} | Eval Loss: {eval_loss:.4f} | Perplexity: {perplexity:.4f}"
         )
+        model.train()
 
 
 if __name__ == "__main__":
