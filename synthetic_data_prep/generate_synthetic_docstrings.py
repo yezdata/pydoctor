@@ -33,7 +33,6 @@ MODEL = "mistralai/mistral-small-2603"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
-EOS_TOKEN = os.environ.get("TOKENIZER_EOS_TOKEN", "")
 
 TOTAL_INPUT_TOKENS = 0
 TOTAL_OUTPUT_TOKENS = 0
@@ -151,7 +150,6 @@ async def _process_batch(
     semaphore: asyncio.Semaphore,
     results: dict[int, str],
     failed_indices: list[int],
-    eos_token: str,
     batches_dir: Path,
 ) -> None:
     global TOTAL_INPUT_TOKENS, TOTAL_OUTPUT_TOKENS
@@ -182,7 +180,10 @@ async def _process_batch(
                 )
                 batch_failed.append(global_idx)
                 continue
-            batch_results[global_idx] = f"{code_text}{docstring}{eos_token}"
+            batch_results[global_idx] = {
+                            "code": code_text,
+                            "docstring": docstring
+                        }
             if global_idx % 10 == 0:
                 log.info(
                     "Token usage so far — Input: %d, Output: %d",
@@ -209,7 +210,7 @@ async def _process_batch(
     failed_indices.extend(batch_failed)
 
 
-async def main(eos_token: str = EOS_TOKEN) -> None:
+async def main() -> None:
     if not OPENROUTER_API_KEY:
         raise ValueError(
             "OPENROUTER_API_KEY is not set. "
@@ -279,7 +280,6 @@ async def main(eos_token: str = EOS_TOKEN) -> None:
                     semaphore,
                     results,
                     failed_indices,
-                    eos_token,
                     batches_dir,
                 )
             )
@@ -317,4 +317,4 @@ async def main(eos_token: str = EOS_TOKEN) -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main(eos_token=EOS_TOKEN))
+    asyncio.run(main())

@@ -22,8 +22,8 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 
 LIBS_DIR = "data/raw/libs"
 
-BATCH_SIZE = 1000
-THE_STACK_SAMPLES = 1_000_000
+BATCH_SIZE = 5000
+THE_STACK_SAMPLES = 10000
 
 
 REPOS = [
@@ -71,6 +71,7 @@ def parse_code(content: str, docstring_token: str) -> list[dict]:
         cst_tree.visit(extractor)
         return extractor.extracted_blocks
     except (cst.ParserSyntaxError, Exception):
+        print("Error parsing code content. Skipping this file.")
         return []
     finally:
         sys.setrecursionlimit(old_limit)
@@ -99,7 +100,7 @@ def extract_code(save_path: str) -> None:
                 print(f"Worker error: {e}")
         return results
 
-    num_workers = min(16, os.cpu_count() or 1)
+    num_workers = 16
     print(f"Workers: {num_workers}")
 
     config = MainConfig.from_yaml("configs.yaml")  # type: ignore
