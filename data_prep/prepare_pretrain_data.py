@@ -29,7 +29,7 @@ def main() -> None:
     ds = load_dataset(ds_id, data_files={"train": safe_files_ds}, data_dir=None)[
         "train"
     ]
-    ds = ds.select_columns(["content"]).rename_column("content", "code")
+    ds = ds.select_columns(["content"]).rename_column("content", "text")
 
     num_workers = min(16, os.cpu_count() or 1)
     ds = ds.filter(

@@ -49,7 +49,7 @@ def evaluate(
     dataloader: torch.utils.data.DataLoader,
     start_token_ids: torch.Tensor,
     pad_token_id: int,
-    max_eval_steps: int = 100,
+    max_eval_steps: int | None = None,
 ) -> tuple[float, float]:
     model.eval()
     total_loss = 0.0
@@ -57,7 +57,7 @@ def evaluate(
 
     with torch.no_grad():
         for batch in dataloader:
-            if steps_run >= max_eval_steps:
+            if max_eval_steps is not None and steps_run >= max_eval_steps:
                 break
 
             outputs = model(batch["input_ids"])
@@ -247,7 +247,7 @@ def main(
             eval_dataloader,
             loss_start_token_ids,
             pad_token_id=tokenizer.pad_token_id,
-            max_eval_steps=100,
+            max_eval_steps=None,
         )
         model.train()
 

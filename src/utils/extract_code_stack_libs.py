@@ -23,7 +23,7 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 LIBS_DIR = "data/raw/libs"
 
 BATCH_SIZE = 5000
-THE_STACK_SAMPLES = 10000
+THE_STACK_SAMPLES = 100_000
 
 
 REPOS = [
@@ -66,7 +66,8 @@ def parse_code(content: str, docstring_token: str) -> list[dict]:
 
         cst_tree = cst.parse_module(content)
         extractor = CodeExtractor(
-            extraction_options="with_docstring", docstring_token=docstring_token
+            extraction_options="with_docstring",
+            docstring_token=f'"""{docstring_token}"""',
         )
         cst_tree.visit(extractor)
         return extractor.extracted_blocks

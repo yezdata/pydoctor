@@ -1,4 +1,3 @@
-import re
 from pathlib import Path
 import json
 from datasets import Dataset, Features, Value
@@ -43,7 +42,7 @@ final_ds = Dataset.from_generator(
     keep_in_memory=False,
 )
 
-print(final_ds[0])
+print(final_ds.to_pandas().head())
 
 tokenizer = get_instruct_tokenizer(config.tokenizer)
 
@@ -52,5 +51,5 @@ tokenized_ds = tokenize_ds(
 )
 
 tokenized_ds.save_to_disk(
-    "data/tokenized_synthetic_the_stack_libs_instruct_smollm2_1_7B_instruct"
+    "data/finetune/tokenized_synthetic_the_stack_libs_instruct_smollm2_1_7B_instruct"
 )

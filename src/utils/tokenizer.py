@@ -48,16 +48,10 @@ def get_finetune_tokenizer(
 def get_instruct_tokenizer(
     config: TokenizerConfig, hf_token: str | None = None
 ) -> PreTrainedTokenizerFast:
-    pretrain_tokenizer_path = f"tokenizers/pretrain/{config.name}"
     save_path = f"tokenizers/instruct_finetune/{config.name}"
 
     if os.path.exists(save_path):
         return PreTrainedTokenizerFast.from_pretrained(save_path, local_files_only=True)
-
-    if os.path.exists(pretrain_tokenizer_path):
-        tokenizer = PreTrainedTokenizerFast.from_pretrained(
-            pretrain_tokenizer_path, local_files_only=True
-        )
     else:
         tokenizer = get_pretrain_tokenizer(config, hf_token=hf_token)
 
