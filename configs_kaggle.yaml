@@ -2,7 +2,7 @@ tokenizer:
   name: "HuggingFaceTB/SmolLM2-1.7B-Instruct"
   eos_token: "<|endoftext|>"
   spec_tokens:
-    docstring_start_token: ""
+    docstring_start_token: null
     docstring_placeholder_token: "<docstring_place>"
 
 finetune:

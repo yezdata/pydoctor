@@ -5,7 +5,7 @@ import yaml
 
 class SpecialTokens(BaseModel):
     docstring_placeholder_token: str
-    docstring_start_token: str
+    docstring_start_token: str | None
 
 
 class TokenizerConfig(BaseModel):
@@ -63,8 +63,8 @@ class FinetuneConfig(BaseModel):
 
 class MainConfig(BaseModel):
     tokenizer: TokenizerConfig
-    decoder: DecoderConfig
-    pretrain: PretrainConfig
+    decoder: DecoderConfig | None = None
+    pretrain: PretrainConfig | None = None
     finetune: FinetuneConfig
 
     @classmethod

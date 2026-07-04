@@ -10,6 +10,7 @@ import httpx
 from datasets import Dataset
 from dotenv import load_dotenv
 
+from src.utils.config_models import MainConfig
 from src.utils.extract_code_stack_libs import extract_code
 
 
@@ -37,21 +38,21 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 TOTAL_INPUT_TOKENS = 0
 TOTAL_OUTPUT_TOKENS = 0
 
+config = MainConfig.from_yaml("configs.yaml")
 
-SYSTEM_PROMPT = """
-    You are a professional Python docstring generator
-    You will receive a JSON object whose keys are string indices and whose value
-    are Python code blocks (functions, methods, or classes)
-    Return ONLY a valid JSON object with the SAME keys and the corresponding
-    docstring summarizing the code block as the value for each key
-    The style of the doctring have to be only sentences summarizing the code block
-    Do NOT write: 
-        Args:
-        Returns:
-        Raises:
-        or any other sections, keep the docstring as a single paragraph
-    Do NOT wrap the output in markdown fences. Do NOT add any extra text
-"""
+
+SYSTEM_PROMPT = """You are a professional Python docstring generator
+You will receive a JSON object whose keys are string indices and whose value
+are Python code blocks (functions, methods, or classes)
+Return ONLY a valid JSON object with the SAME keys and the corresponding
+docstring summarizing ONLY the code block marked with {config.tokenizer.spec_tokens.docstring_placeholder_token} as the value for each key
+The style of the doctring have to be only sentences summarizing the code block as single STRING
+Do NOT write: 
+    Args:
+    Returns:
+    Raises:
+    or any other sections, keep the docstring as a single paragraph
+Do NOT wrap the output in markdown fences. Do NOT add any extra text"""
 
 
 def _extract_json(text: str) -> dict:

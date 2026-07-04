@@ -8,7 +8,7 @@ from src.utils.tokenize import tokenize_ds
 
 batches_dir = Path("data/synthetic_batches")
 
-config = MainConfig.from_yaml("kaggle_configs.yaml")
+config = MainConfig.from_yaml("configs_kaggle.yaml")
 
 SYSTEM_PROMPT = f"""You are a professional Python docstring generator.
 You will receive Python code block (function, class, class method).
@@ -42,12 +42,12 @@ final_ds = Dataset.from_generator(
     keep_in_memory=False,
 )
 
-print(final_ds.to_pandas().head())
+print(final_ds[0])
 
 tokenizer = get_instruct_tokenizer(config.tokenizer)
 
 tokenized_ds = tokenize_ds(
-    ds=final_ds, packing=False, tokenizer=tokenizer, num_workers=16, batch_size=256
+    ds=final_ds, packing=False, tokenizer=tokenizer, num_workers=16, batch_size=512
 )
 
 tokenized_ds.save_to_disk(
