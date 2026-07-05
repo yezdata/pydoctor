@@ -7,7 +7,7 @@ import os
 from optimum.onnxruntime import ORTModelForCausalLM
 from tokenizers import Tokenizer
 
-from src.cst.docstring_transformer import DocstringTransformer, CodeExtractor
+from pydoctor_cst.docstring_transformer import DocstringTransformer, CodeExtractor
 
 # TODO: presun inference do /inference.py
 
@@ -31,7 +31,7 @@ def get_chat_template(user_prompt: str) -> str:
     return final_output
 
 
-def main():
+def main() -> None:
     parser = ArgumentParser(description="Process Python files and add docstrings.")
     parser.add_argument(
         "path", type=str, help="Directory containing Python files to process."
@@ -108,7 +108,3 @@ def main():
             except Exception:
                 logging.exception(f"Error processing file: {file}")
                 continue
-
-
-if __name__ == "__main__":
-    main()

@@ -10,8 +10,8 @@ import httpx
 from datasets import Dataset
 from dotenv import load_dotenv
 
-from src.utils.config_models import MainConfig
-from src.utils.extract_code_stack_libs import extract_code
+from pydoctor_model_pipeline.utils.config_models import MainConfig
+from pydoctor_model_pipeline.utils.extract_code_stack_libs import extract_code
 
 
 logging.basicConfig(
@@ -181,10 +181,7 @@ async def _process_batch(
                 )
                 batch_failed.append(global_idx)
                 continue
-            batch_results[global_idx] = {
-                            "code": code_text,
-                            "docstring": docstring
-                        }
+            batch_results[global_idx] = {"code": code_text, "docstring": docstring}
             if global_idx % 10 == 0:
                 log.info(
                     "Token usage so far — Input: %d, Output: %d",
@@ -317,5 +314,5 @@ async def main() -> None:
         log.info("All batches completed successfully — no failures.")
 
 
-if __name__ == "__main__":
+def run_main() -> None:
     asyncio.run(main())

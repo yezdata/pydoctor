@@ -1,7 +1,7 @@
 from transformers import PreTrainedTokenizerFast
 import os
 
-from src.utils.config_models import TokenizerConfig
+from pydoctor_model_pipeline.utils.config_models import TokenizerConfig
 
 
 def get_pretrain_tokenizer(

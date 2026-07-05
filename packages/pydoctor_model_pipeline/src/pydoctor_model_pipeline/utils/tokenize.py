@@ -1,4 +1,3 @@
-from functools import partial
 from transformers import PreTrainedTokenizerFast, BatchEncoding
 from datasets import Dataset, Features, Value, Sequence
 from typing import Generator

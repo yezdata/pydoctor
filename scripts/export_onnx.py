@@ -1,7 +1,9 @@
 # /// script
 # dependencies = [
-#  "transformers==4.53.3",
-# "optimum-onnx[onnxruntime]>=0.1.0",
+#     "transformers==4.53.3",
+#     "optimum-onnx[onnxruntime]>=0.1.0",
+#     "peft",
+#     "torch>=2.12.0",
 # ]
 # ///
 

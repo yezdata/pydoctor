@@ -2,9 +2,9 @@ from pathlib import Path
 import json
 from datasets import Dataset, Features, Value
 
-from src.utils.config_models import MainConfig
-from src.utils.tokenizer import get_instruct_tokenizer
-from src.utils.tokenize import tokenize_ds
+from pydoctor_model_pipeline.utils.config_models import MainConfig
+from pydoctor_model_pipeline.utils.tokenizer import get_instruct_tokenizer
+from pydoctor_model_pipeline.utils.tokenize import tokenize_ds
 
 batches_dir = Path("data/synthetic_batches")
 
@@ -34,22 +34,23 @@ def stream_batches(batches_dir):
                 yield {"text": final_output}
 
 
-features = Features({"text": Value("string")})
+def main() -> None:
+    features = Features({"text": Value("string")})
 
-final_ds = Dataset.from_generator(
-    lambda: stream_batches(batches_dir),
-    features=features,
-    keep_in_memory=False,
-)
+    final_ds = Dataset.from_generator(
+        lambda: stream_batches(batches_dir),
+        features=features,
+        keep_in_memory=False,
+    )
 
-print(final_ds[0])
+    print(final_ds[0])
 
-tokenizer = get_instruct_tokenizer(config.tokenizer)
+    tokenizer = get_instruct_tokenizer(config.tokenizer)
 
-tokenized_ds = tokenize_ds(
-    ds=final_ds, packing=False, tokenizer=tokenizer, num_workers=16, batch_size=512
-)
+    tokenized_ds = tokenize_ds(
+        ds=final_ds, packing=False, tokenizer=tokenizer, num_workers=16, batch_size=512
+    )
 
-tokenized_ds.save_to_disk(
-    "data/finetune/tokenized_synthetic_the_stack_libs_instruct_smollm2_1_7B_instruct"
-)
+    tokenized_ds.save_to_disk(
+        "data/finetune/tokenized_synthetic_the_stack_libs_instruct_smollm2_1_7B_instruct"
+    )

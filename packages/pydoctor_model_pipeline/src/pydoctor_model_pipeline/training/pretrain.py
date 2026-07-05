@@ -10,15 +10,17 @@ import glob
 import math
 import os
 
-from src.utils.config_models import MainConfig
-from src.utils.save_model import save_decoder_model
-from src.model.init_weights import init_weights_modern
-from src.model.transformer_blocks import construct_block_diagonal_mask
-from src.model.decoder_arch import DecoderModel
-from src.utils.tokenizer import get_pretrain_tokenizer
+from pydoctor_model_pipeline.utils.config_models import MainConfig
+from pydoctor_model_pipeline.utils.save_model import save_decoder_model
+from pydoctor_model_pipeline.model.init_weights import init_weights_modern
+from pydoctor_model_pipeline.model.transformer_blocks import (
+    construct_block_diagonal_mask,
+)
+from pydoctor_model_pipeline.model.decoder_arch import DecoderModel
+from pydoctor_model_pipeline.utils.tokenizer import get_pretrain_tokenizer
 
 
-SAVE_DIR = "models/v1/pretrain"
+SAVE_PATH = "models/v1/pretrain"
 
 
 def compute_loss(
@@ -88,7 +90,7 @@ def packed_collate_fn(batch: list[dict], eos_token_id: int) -> dict[str, torch.T
     return {"input_ids": input_ids, "attention_mask": mask, "input_pos": input_pos}
 
 
-def main(save_dir: str) -> None:
+def main() -> None:
     set_seed(6767)
     num_workers = min(16, os.cpu_count() or 1)
 
@@ -103,7 +105,7 @@ def main(save_dir: str) -> None:
         f"{config.pretrain.tokenized_ds_dir}{config.pretrain.max_seq_len}"
     )
 
-    with open(f"{save_dir}/config.json", "w") as f:
+    with open(f"{SAVE_PATH}/config.json", "w") as f:
         f.write(config.model_dump_json(indent=4))
 
     accelerator = Accelerator(
@@ -228,7 +230,7 @@ def main(save_dir: str) -> None:
                     f"CHECKPOINT {step} | TRAIN Loss: {loss.item():.4f} | Eval Loss: {eval_loss:.4f} | Perplexity: {perplexity:.4f}"
                 )
 
-                step_path = f"{save_dir}/epoch_{epoch + 1}/step_{step}"
+                step_path = f"{SAVE_PATH}/epoch_{epoch + 1}/step_{step}"
 
                 save_decoder_model(
                     accelerator,
@@ -238,7 +240,7 @@ def main(save_dir: str) -> None:
                     eval_loss,
                 )
 
-        epoch_path = f"{save_dir}/epoch_{epoch + 1}"
+        epoch_path = f"{SAVE_PATH}/epoch_{epoch + 1}"
         save_decoder_model(accelerator, model, epoch_path)
 
         eval_loss, perplexity = evaluate(
@@ -252,7 +254,3 @@ def main(save_dir: str) -> None:
             f"FINISH EPOCH {epoch + 1} | Eval Loss: {eval_loss:.4f} | Perplexity: {perplexity:.4f}"
         )
         model.train()
-
-
-if __name__ == "__main__":
-    main(SAVE_DIR)

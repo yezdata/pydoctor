@@ -10,11 +10,12 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 import concurrent.futures
 
-from src.utils.preprocessing import download_and_extract_py, passes_quality_filter
-from src.utils.tokenizer import get_finetune_tokenizer
-from src.utils.tokenize import tokenize_ds
-from src.utils.config_models import MainConfig
-from src.cst.code_extractor import CodeExtractor
+from pydoctor_model_pipeline.utils.preprocessing import (
+    download_and_extract_py,
+    passes_quality_filter,
+)
+from pydoctor_model_pipeline.utils.config_models import MainConfig
+from pydoctor_shared_cst.code_extractor import CodeExtractor
 
 
 load_dotenv()

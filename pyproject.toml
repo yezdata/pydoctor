@@ -1,8 +1,22 @@
+[project]
+name = "pydoctor"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pydoctor-cli",
+    "pydoctor-model-pipeline",
+    "pydoctor-shared-cst",
+]
+
+
+
 [tool.uv.workspace]
 members = [
-    "packages/pydoctor-cli",
-    "packages/pydoctor-model-pipeline",
-    "packages/pydoctor-shared-cst",
+    "packages/pydoctor_cli",
+    "packages/pydoctor_model_pipeline",
+    "packages/pydoctor_shared_cst",
 ]
 
 [[tool.uv.index]]
@@ -11,9 +25,14 @@ url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
 [tool.uv.sources]
+pydoctor-shared-cst = { workspace = true }
+pydoctor-cli = { workspace = true }
+pydoctor-model-pipeline = { workspace = true }
+
 torch = [
     { index = "pytorch-cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
+
      
 [tool.pyright]
 exclude = [

@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.model.init_weights import init_weights_modern
-from src.utils.config_models import DecoderConfig
-from src.model.transformer_blocks import RMSNorm, SwiGLU
-from src.model.rope import RotaryPositionalEmbeddings
+from pydoctor_model_pipeline.model.init_weights import init_weights_modern
+from pydoctor_model_pipeline.utils.config_models import DecoderConfig
+from pydoctor_model_pipeline.model.transformer_blocks import RMSNorm, SwiGLU
+from pydoctor_model_pipeline.model.rope import RotaryPositionalEmbeddings
 
 
 class DecoderLayer(nn.Module):
@@ -115,8 +115,6 @@ class DecoderModel(nn.Module):
             return
 
         assert new_vocab_size > old_embeddings.num_embeddings
-
-
 
         new_embeddings = nn.Embedding(new_vocab_size, old_embeddings.embedding_dim)
         init_weights_modern(new_embeddings)

@@ -1,5 +1,6 @@
 import torch.nn as nn
-from src.model.transformer_blocks import RMSNorm
+
+from pydoctor_model_pipeline.model.transformer_blocks import RMSNorm
 
 
 def init_weights_modern(module: nn.Module, n_layers: int | None = None):

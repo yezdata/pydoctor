@@ -2,10 +2,10 @@ from datasets import load_dataset
 from huggingface_hub import list_repo_files
 import os
 
-from src.utils.tokenizer import get_pretrain_tokenizer
-from src.utils.tokenize import tokenize_ds
-from src.utils.preprocessing import passes_quality_filter
-from src.utils.config_models import MainConfig
+from pydoctor_model_pipeline.utils.tokenizer import get_pretrain_tokenizer
+from pydoctor_model_pipeline.utils.tokenize import tokenize_ds
+from pydoctor_model_pipeline.utils.preprocessing import passes_quality_filter
+from pydoctor_model_pipeline.utils.config_models import MainConfig
 
 
 def main() -> None:
@@ -47,7 +47,3 @@ def main() -> None:
     os.makedirs(PRETRAIN_DIR, exist_ok=True)
 
     ds.save_to_disk(PRETRAIN_DIR)
-
-
-if __name__ == "__main__":
-    main()

@@ -9,10 +9,10 @@ from datasets import load_from_disk
 from tqdm import tqdm
 import math
 
-from src.utils.tokenizer import get_finetune_tokenizer
-from src.utils.config_models import MainConfig, DecoderConfig
-from src.model.decoder_arch import DecoderModel
-from src.utils.save_model import save_decoder_model
+from pydoctor_model_pipeline.utils.tokenizer import get_finetune_tokenizer
+from pydoctor_model_pipeline.utils.config_models import MainConfig, DecoderConfig
+from pydoctor_model_pipeline.model.decoder_arch import DecoderModel
+from pydoctor_model_pipeline.utils.save_model import save_decoder_model
 
 
 SAVE_PATH = "models/v2/finetune"
@@ -78,10 +78,7 @@ def evaluate(
     return avg_eval_loss, perplexity
 
 
-def main(
-    save_path: str,
-    base_model_path: str,
-) -> None:
+def main() -> None:
     set_seed(1337)
     num_workers = min(16, os.cpu_count() or 1)
 
@@ -90,13 +87,13 @@ def main(
         config.tokenizer,
     )
 
-    with open(f"{base_model_path}/config.json", "r") as f:
+    with open(f"{BASE_MODEL_PATH}/config.json", "r") as f:
         model_config = DecoderConfig.model_validate_json(f.read())
 
     config.decoder = model_config
     config.decoder.vocab_size = len(tokenizer)
 
-    with open(f"{save_path}/config.json", "w") as f:
+    with open(f"{SAVE_PATH}/config.json", "w") as f:
         f.write(config.model_dump_json(indent=4))
 
     accelerator = Accelerator(
@@ -117,7 +114,7 @@ def main(
     )
 
     state_dict = load_file(
-        f"{base_model_path}/model.safetensors", device=str(accelerator.device)
+        f"{BASE_MODEL_PATH}/model.safetensors", device=str(accelerator.device)
     )
 
     if "token_embedding.weight" not in state_dict and "head.weight" in state_dict:
@@ -258,16 +255,9 @@ def main(
         save_decoder_model(
             accelerator,
             model,
-            f"{save_path}/epoch_{epoch + 1}",
+            f"{SAVE_PATH}/epoch_{epoch + 1}",
             avg_train_loss,
             eval_loss,
         )
         running_loss = 0.0
         running_steps = 0
-
-
-if __name__ == "__main__":
-    main(
-        save_path=SAVE_PATH,
-        base_model_path=BASE_MODEL_PATH,
-    )

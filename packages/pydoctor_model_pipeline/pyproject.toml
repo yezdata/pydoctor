@@ -1,0 +1,35 @@
+[project]
+name = "pydoctor-model-pipeline"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pydoctor-shared-cst",
+    "accelerate>=1.14.0",
+    "datasets>=5.0.0",
+    "peft>=0.19.1",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.1",
+    "requests>=2.34.2",
+    "torch>=2.12.0",
+    "tqdm>=4.68.2",
+    "transformers>=5.13.0",
+]
+
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pydoctor_model_pipeline"]
+
+
+[project.scripts]
+prepare_pretrain = "pydoctor_model_pipeline.data_prep.prepare_pretrain_data:main"
+
+generate_synthetic = "pydoctor_model_pipeline.synthetic_data_prep.generate_synthetic_docstrings:run_main"
+prepare_instruct_finetune = "pydoctor_model_pipeline.synthetic_data_prep.prepare_instruct_finetune_synthetic:main"
+prepare_finetune = "pydoctor_model_pipeline.synthetic_data_prep.prepare_finetune_synthetic:main"
+
+run_pretrain = "pydoctor_model_pipeline.training.pretrain:main"
+run_finetune = " pydoctor_model_pipeline.training.finetune:main"
