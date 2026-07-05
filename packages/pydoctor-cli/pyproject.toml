@@ -1,0 +1,12 @@
+[project]
+name = "pydoctor-cli"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pydoctor-shared-cst",
+    "optimum-onnx[onnxruntime]>=0.1.0",
+]
+
+
+[tool.uv.scripts]
+run_cli = "python src/pydoctor_cli/cli.py"

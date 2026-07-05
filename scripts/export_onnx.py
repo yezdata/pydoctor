@@ -1,6 +1,13 @@
+# /// script
+# dependencies = [
+#  "transformers==4.53.3",
+# "optimum-onnx[onnxruntime]>=0.1.0",
+# ]
+# ///
+
+
 import torch
 from transformers import AutoModelForCausalLM
-import os
 from peft import PeftModel
 import subprocess
 

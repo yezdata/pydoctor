@@ -9,6 +9,7 @@ from tokenizers import Tokenizer
 
 from src.cst.docstring_transformer import DocstringTransformer, CodeExtractor
 
+# TODO: presun inference do /inference.py
 
 SYSTEM_PROMPT = """
 You are a professional Python docstring generator
