@@ -119,6 +119,7 @@ def main(
     tokenizer = get_instruct_tokenizer(config.tokenizer)
     tokenizer.padding_side = "right"
 
+    os.makedirs(save_path, exist_ok=True)
     with open(f"{save_path}/config.json", "w") as f:
         f.write(config.model_dump_json(indent=4))
 

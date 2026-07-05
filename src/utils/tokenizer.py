@@ -35,7 +35,9 @@ def get_finetune_tokenizer(
     else:
         tokenizer = get_pretrain_tokenizer(config, hf_token=hf_token)
 
-    spec_tokens = {"extra_special_tokens": list(config.spec_tokens.model_dump().values())}
+    spec_tokens = {
+        "extra_special_tokens": list(config.spec_tokens.model_dump().values())
+    }
     tokenizer.add_special_tokens(spec_tokens, replace_extra_special_tokens=False)  # type: ignore
 
     tokenizer.eos_token = config.eos_token
@@ -53,7 +55,7 @@ def get_instruct_tokenizer(
     if os.path.exists(save_path):
         return PreTrainedTokenizerFast.from_pretrained(save_path, local_files_only=True)
     else:
-        tokenizer = get_pretrain_tokenizer(config, hf_token=hf_token)
+        tokenizer = PreTrainedTokenizerFast.from_pretrained(config.name, token=hf_token)
 
     tokenizer.eos_token = config.eos_token
     tokenizer.pad_token = tokenizer.eos_token
