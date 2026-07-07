@@ -14,7 +14,6 @@ from pydoctor_model_pipeline.utils.preprocessing import (
     download_and_extract_py,
     passes_quality_filter,
 )
-from pydoctor_model_pipeline.utils.config_models import MainConfig
 from pydoctor_shared_cst.code_extractor import CodeExtractor
 
 
@@ -23,8 +22,8 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 
 LIBS_DIR = "data/raw/libs"
 
-BATCH_SIZE = 20000
-THE_STACK_SAMPLES = 500_000
+BATCH_SIZE = 50_000
+THE_STACK_SAMPLES = 1_000_000
 
 
 REPOS = [
@@ -86,7 +85,6 @@ def extract_code(save_path: str) -> None:
             executor.submit(
                 parse_code,
                 content,
-                config.tokenizer.spec_tokens.docstring_placeholder_token,
             )
             for content in batch
         ]
@@ -101,10 +99,9 @@ def extract_code(save_path: str) -> None:
                 print(f"Worker error: {e}")
         return results
 
-    num_workers = 24
+    num_workers = 16
     print(f"Workers: {num_workers}")
 
-    config = MainConfig.from_yaml("configs.yaml")  # type: ignore
 
     if not os.path.exists(LIBS_DIR):
         os.makedirs(LIBS_DIR, exist_ok=True)

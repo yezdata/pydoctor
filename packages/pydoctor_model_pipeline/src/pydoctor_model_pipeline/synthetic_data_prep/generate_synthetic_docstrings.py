@@ -238,8 +238,8 @@ async def main() -> None:
     extract_code(EXTRACTED_CODE_PATH)
 
     ds = Dataset.load_from_disk(EXTRACTED_CODE_PATH)
-    targets = ds["Target"]
-    contexts = ds["Context"]
+    targets = ds["target"]
+    contexts = ds["context"]
     total = len(targets)
     log.info("Loaded %d samples.", total)
 
