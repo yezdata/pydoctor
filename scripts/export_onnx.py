@@ -1,7 +1,7 @@
 # /// script
 # dependencies = [
-#     "transformers==4.53.3",
-#     "optimum-onnx[onnxruntime]>=0.1.0",
+#     "transformers==4.57.6",
+#     "optimum-onnx[onnxruntime]",
 #     "peft",
 #     "torch>=2.12.0",
 # ]
@@ -19,8 +19,9 @@ base = AutoModelForCausalLM.from_pretrained(
 model = PeftModel.from_pretrained(
     base, "models/smollm2_1_7b_instruct/finetune_instruct/epoch_3"
 )
+merged_model_path = "models/smollm2_1_7b_instruct_merged"
 model = model.merge_and_unload()
-model.save_pretrained("models/smollm2_1_7b_instruct_merged")
+model.save_pretrained(merged_model_path)
 
 
 onnx_fp32_path = "models/onnx/smollm2_1_7b_instruct_merged"
@@ -32,9 +33,10 @@ subprocess.run(
         "export",
         "onnx",
         "--model",
-        "models/smollm2_1_7b_instruct_merged",
+        merged_model_path,
         "--task",
         "text-generation-with-past",
+        "--trust-remote-code",
         onnx_fp32_path,
         "--no-post-process",
     ]
