@@ -1,5 +1,4 @@
 import libcst as cst
-import textwrap
 from libcst import matchers as m
 from collections import deque
 from typing import Literal
@@ -32,22 +31,22 @@ def strip_docstring_from_node(
     ), docstring.strip()
 
 
-def insert_docstring_token(
-    node: cst.FunctionDef | cst.ClassDef, docstring_token: str
-) -> cst.CSTNode:
-    docstring_node = cst.SimpleStatementLine(
-        body=[cst.Expr(value=cst.SimpleString(value=docstring_token))]
-    )
-    new_body = [docstring_node] + list(node.body.body)
-    return node.with_changes(body=node.body.with_changes(body=new_body))
+# def insert_docstring_token(
+#     node: cst.FunctionDef | cst.ClassDef, docstring_token: str
+# ) -> cst.CSTNode:
+#     docstring_node = cst.SimpleStatementLine(
+#         body=[cst.Expr(value=cst.SimpleString(value=docstring_token))]
+#     )
+#     new_body = [docstring_node] + list(node.body.body)
+#     return node.with_changes(body=node.body.with_changes(body=new_body))
 
 
 class ClassSkeletonTransformer(cst.CSTTransformer):
     """Creates custom class code format"""
 
-    def __init__(self, add_methods: bool):
+    def __init__(self):
         super().__init__()
-        self.add_methods = add_methods
+        self.extracted_context = []
         self.pass_body = cst.IndentedBlock(
             body=[cst.SimpleStatementLine(body=[cst.Pass()])]
         )
@@ -67,9 +66,9 @@ class ClassSkeletonTransformer(cst.CSTTransformer):
                 if item.name.value == "__init__":
                     init_node, _ = strip_docstring_from_node(item)
                     new_body.append(init_node)
-                elif self.add_methods:
+                else:
                     stub_method = item.with_changes(body=self.pass_body)
-                    new_body.append(stub_method)
+                    self.extracted_context.append(stub_method)
 
             elif isinstance(item, cst.SimpleStatementLine):
                 new_body.append(item)
@@ -83,11 +82,9 @@ class CodeExtractor(cst.CSTVisitor):
     def __init__(
         self,
         extraction_options: Literal["with_docstring", "without_docstring", "all"],
-        docstring_token: str,
     ):
         super().__init__()
         self.root_module = None
-        self.docstring_token = docstring_token
 
         self.extraction_options = extraction_options
 
@@ -124,24 +121,19 @@ class CodeExtractor(cst.CSTVisitor):
                 self.stack.append(node)
                 return False
 
-            clean_node_with_token = insert_docstring_token(
-                clean_node, self.docstring_token
-            )
-            method_code = self.root_module.code_for_node(clean_node_with_token).strip()
-            indented_method_code = textwrap.indent(method_code, "    ")
-            code = f"{class_code}\n\n{indented_method_code}"
+            method_code = self.root_module.code_for_node(clean_node).strip()
+            code = {"context": class_code, "target": method_code}
 
         else:
             clean_node, docstring = strip_docstring_from_node(node)
             if not self._return_code(docstring):
                 self.stack.append(node)
                 return False
-            clean_node_with_token = insert_docstring_token(
-                clean_node, self.docstring_token
-            )
-            code = self.root_module.code_for_node(clean_node_with_token).strip()
 
-        self.extracted_blocks.append({"code": code})
+            func_code = self.root_module.code_for_node(clean_node).strip()
+            code = {"context": "Independent code block", "target": func_code}
+
+        self.extracted_blocks.append(code)
         self.stack.append(node)
         return False
 
@@ -149,16 +141,10 @@ class CodeExtractor(cst.CSTVisitor):
         self.stack.pop()
 
     def visit_ClassDef(self, node: cst.ClassDef) -> bool:
-        transformer_with_methods = ClassSkeletonTransformer(add_methods=True)
-        class_with_methods = node.visit(transformer_with_methods)
+        skeleton_transformer = ClassSkeletonTransformer()
+        class_no_methods = node.visit(skeleton_transformer)
 
-        clean_class_with_methods, docstring = strip_docstring_from_node(
-            class_with_methods
-        )
-
-        transformer_no_methods = ClassSkeletonTransformer(add_methods=False)
-        class_no_methods = node.visit(transformer_no_methods)
-        clean_class_no_methods, _ = strip_docstring_from_node(class_no_methods)
+        clean_class_no_methods, docstring = strip_docstring_from_node(class_no_methods)
 
         self._class_skeletons[id(node)] = self.root_module.code_for_node(
             clean_class_no_methods
@@ -168,11 +154,14 @@ class CodeExtractor(cst.CSTVisitor):
             self.stack.append(node)
             return True
 
-        clean_class_with_methods_token = insert_docstring_token(
-            clean_class_with_methods, self.docstring_token
+        class_code = self.root_module.code_for_node(clean_class_no_methods).strip()
+        method_context_code = self.root_module.code_for_node(
+            cst.Module(body=skeleton_transformer.extracted_context)
+        ).strip()
+
+        self.extracted_blocks.append(
+            {"target": class_code, "context": method_context_code}
         )
-        code = self.root_module.code_for_node(clean_class_with_methods_token).strip()
-        self.extracted_blocks.append({"code": code})
 
         self.stack.append(node)
         return True

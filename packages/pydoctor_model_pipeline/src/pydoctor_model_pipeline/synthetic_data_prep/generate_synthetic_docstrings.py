@@ -10,7 +10,6 @@ import httpx
 from datasets import Dataset
 from dotenv import load_dotenv
 
-from pydoctor_model_pipeline.utils.config_models import MainConfig
 from pydoctor_model_pipeline.utils.extract_code_stack_libs import extract_code
 
 
@@ -30,7 +29,7 @@ BATCH_SIZE = 10
 MAX_CONCURRENT = 5
 MAX_RETRIES = 5
 
-MODEL = "mistralai/mistral-small-2603"
+MODEL = "deepseek/deepseek-v4-flash"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
@@ -38,14 +37,15 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 TOTAL_INPUT_TOKENS = 0
 TOTAL_OUTPUT_TOKENS = 0
 
-config = MainConfig.from_yaml("configs.yaml")
-
 
 SYSTEM_PROMPT = """You are a professional Python docstring generator
 You will receive a JSON object whose keys are string indices and whose value
 are Python code blocks (functions, methods, or classes)
+Each code block is presented with its CONTEXT (surrounding signatures or
+the constructor, or the note "Independent code block") followed by the
+TARGET CODE (the function, method, or class you must document)
 Return ONLY a valid JSON object with the SAME keys and the corresponding
-docstring summarizing ONLY the code block marked with {config.tokenizer.spec_tokens.docstring_placeholder_token} as the value for each key
+docstring summarizing ONLY the TARGET CODE as the value for each key
 The style of the doctring have to be only sentences summarizing the code block as single STRING
 Do NOT write: 
     Args:
@@ -63,13 +63,22 @@ def _extract_json(text: str) -> dict:
     return json.loads(text)
 
 
+def _format_sample(context: str, target: str) -> str:
+    return f"CONTEXT:\n{context}\n\nTARGET CODE:\n{target}"
+
+
 def _make_batches(
     all_indices: list[int],
-    texts: list[str],
+    contexts: list[str],
+    targets: list[str],
     size: int,
-) -> list[tuple[list[int], list[str]]]:
+) -> list[tuple[list[int], list[str], list[str]]]:
     return [
-        (all_indices[i : i + size], texts[i : i + size])
+        (
+            all_indices[i : i + size],
+            contexts[i : i + size],
+            targets[i : i + size],
+        )
         for i in range(0, len(all_indices), size)
     ]
 
@@ -146,16 +155,20 @@ async def _call_api(
 async def _process_batch(
     batch_idx: int,
     batch_indices: list[int],
-    batch_texts: list[str],
+    batch_contexts: list[str],
+    batch_targets: list[str],
     client: httpx.AsyncClient,
     semaphore: asyncio.Semaphore,
-    results: dict[int, str],
+    results: dict[int, dict[str, str]],
     failed_indices: list[int],
     batches_dir: Path,
 ) -> None:
     global TOTAL_INPUT_TOKENS, TOTAL_OUTPUT_TOKENS
     str_keys = [str(idx) for idx in batch_indices]
-    batch_payload = dict(zip(str_keys, batch_texts))
+    formatted_texts = [
+        _format_sample(ctx, tgt) for ctx, tgt in zip(batch_contexts, batch_targets)
+    ]
+    batch_payload = dict(zip(str_keys, formatted_texts))
 
     docstrings, prompt_tokens, completion_tokens = await _call_api(
         client, batch_payload, semaphore
@@ -171,7 +184,9 @@ async def _process_batch(
         )
         batch_failed.extend(batch_indices)
     else:
-        for global_idx, code_text in zip(batch_indices, batch_texts):
+        for global_idx, context_text, target_text in zip(
+            batch_indices, batch_contexts, batch_targets
+        ):
             str_idx = str(global_idx)
             docstring = docstrings.get(str_idx, "")
             if not docstring:
@@ -181,7 +196,11 @@ async def _process_batch(
                 )
                 batch_failed.append(global_idx)
                 continue
-            batch_results[global_idx] = {"code": code_text, "docstring": docstring}
+            batch_results[global_idx] = {
+                "context": context_text,
+                "target": target_text,
+                "docstring": docstring,
+            }
             if global_idx % 10 == 0:
                 log.info(
                     "Token usage so far — Input: %d, Output: %d",
@@ -219,12 +238,13 @@ async def main() -> None:
     extract_code(EXTRACTED_CODE_PATH)
 
     ds = Dataset.load_from_disk(EXTRACTED_CODE_PATH)
-    texts = ds["code"]
-    total = len(texts)
+    targets = ds["Target"]
+    contexts = ds["Context"]
+    total = len(targets)
     log.info("Loaded %d samples.", total)
 
     all_indices = list(range(total))
-    batches = _make_batches(all_indices, texts, BATCH_SIZE)
+    batches = _make_batches(all_indices, contexts, targets, BATCH_SIZE)
     log.info(
         "Created %d batches of up to %d samples (concurrency cap: %d).",
         len(batches),
@@ -235,7 +255,7 @@ async def main() -> None:
     batches_dir = Path(BATCHES_DIR)
     batches_dir.mkdir(parents=True, exist_ok=True)
 
-    results: dict[int, str] = {}
+    results: dict[int, dict[str, str]] = {}
     failed_indices: list[int] = []
 
     completed_batches = set()
@@ -266,14 +286,15 @@ async def main() -> None:
 
     async with httpx.AsyncClient() as client:
         tasks = []
-        for batch_idx, (idx_list, text_list) in enumerate(batches):
+        for batch_idx, (idx_list, context_list, target_list) in enumerate(batches):
             if batch_idx in completed_batches:
                 continue
             tasks.append(
                 _process_batch(
                     batch_idx,
                     idx_list,
-                    text_list,
+                    context_list,
+                    target_list,
                     client,
                     semaphore,
                     results,

@@ -55,7 +55,7 @@ def read_file(filepath: str) -> str | None:
         return None
 
 
-def parse_code(content: str, docstring_token: str) -> list[dict]:
+def parse_code(content: str) -> list[dict]:
     import sys
 
     old_limit = sys.getrecursionlimit()
@@ -68,7 +68,6 @@ def parse_code(content: str, docstring_token: str) -> list[dict]:
         cst_tree = cst.parse_module(content)
         extractor = CodeExtractor(
             extraction_options="with_docstring",
-            docstring_token=f'"""{docstring_token}"""',
         )
         cst_tree.visit(extractor)
         return extractor.extracted_blocks
