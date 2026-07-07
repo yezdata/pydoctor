@@ -114,7 +114,15 @@ async def _call_api(
                 )
                 response.raise_for_status()
                 data = response.json()
-                raw_content: str = data["choices"][0]["message"]["content"]
+                raw_content: str | None = data["choices"][0]["message"]["content"]
+                if raw_content is None:
+                    wait = 2**attempt
+                    log.warning(
+                        "No content returned for batch keys: %s — retrying.",
+                        list(batch_payload.keys()),
+                    )
+                    await asyncio.sleep(wait)
+                    continue
                 docstrings = _extract_json(raw_content)
                 usage = data.get("usage", {})
                 prompt_tokens = usage.get("prompt_tokens", 0)
