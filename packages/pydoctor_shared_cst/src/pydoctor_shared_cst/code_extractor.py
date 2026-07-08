@@ -15,7 +15,7 @@ def is_property_or_special(node: cst.FunctionDef) -> bool:
 
 def strip_docstring_from_node(
     node: cst.FunctionDef | cst.ClassDef,
-) -> tuple[cst.CSTNode, str | None]:
+) -> tuple[cst.FunctionDef | cst.ClassDef, str | None]:
     """Strip docstring from node and return the node and the docstring"""
     docstring = node.get_docstring()
     if docstring is None:
@@ -138,7 +138,7 @@ class CodeExtractor(cst.CSTVisitor):
         self.stack.append(node)
         return False
 
-    def leave_FunctionDef(self, node: cst.FunctionDef) -> None:
+    def leave_FunctionDef(self, original_node: cst.FunctionDef) -> None:
         self.stack.pop()
 
     def visit_ClassDef(self, node: cst.ClassDef) -> bool:
@@ -170,5 +170,5 @@ class CodeExtractor(cst.CSTVisitor):
         self.stack.append(node)
         return True
 
-    def leave_ClassDef(self, node: cst.ClassDef) -> None:
+    def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
         self.stack.pop()

@@ -7,7 +7,7 @@ from pydoctor_shared_cst.code_extractor import strip_docstring_from_node
 
 def insert_docstring(
     node: cst.FunctionDef | cst.ClassDef, docstring: str
-) -> cst.CSTNode:
+) -> cst.FunctionDef | cst.ClassDef:
     node, _ = strip_docstring_from_node(node)
 
     docstring_node = cst.SimpleStatementLine(

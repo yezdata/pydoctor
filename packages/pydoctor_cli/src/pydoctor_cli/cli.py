@@ -1,17 +1,22 @@
 import libcst as cst
 from libcst.metadata import MetadataWrapper
 from llama_cpp import Llama
-import glob
 from argparse import ArgumentParser
 import logging
 import os
+from typing import Literal
+from pathlib import Path
 
 from pydoctor_cli.inference import generate_docstring
 from pydoctor_shared_cst.docstring_transformer import DocstringTransformer
 from pydoctor_shared_cst.code_extractor import CodeExtractor
 
 
-def process_single_file(file_path: str, llm: Llama) -> None:
+def process_single_file(
+    file_path: Path,
+    llm: Llama,
+    extraction_option: Literal["with_docstring", "without_docstring", "all"],
+) -> None:
     tmp_file_path = f"{file_path}.tmp"
 
     if os.path.exists(tmp_file_path):
@@ -28,7 +33,7 @@ def process_single_file(file_path: str, llm: Llama) -> None:
         cst_tree = cst.parse_module(source_code)
         wrapper = MetadataWrapper(cst_tree)
 
-        extractor = CodeExtractor(extraction_options="without_docstring")
+        extractor = CodeExtractor(extraction_options=extraction_option)
         wrapper.visit(extractor)
 
         if not extractor.extracted_blocks:
@@ -36,7 +41,7 @@ def process_single_file(file_path: str, llm: Llama) -> None:
 
         llm_responses = {}
         for k, v in extractor.extracted_blocks.items():
-            docstring = generate_docstring(llm, v)
+            docstring = generate_docstring(llm, v).strip().replace('"""', "'''")
             llm_responses[k] = f'"""{docstring}"""'
 
         transformer = DocstringTransformer(generated_docstrings=llm_responses)
@@ -65,7 +70,35 @@ def main() -> None:
         help="Python file or directory containing Python files to process.",
     )
 
+    group = parser.add_mutually_exclusive_group()
+
+    group.add_argument(
+        "--replace",
+        action="store_const",
+        dest="extraction_option",
+        const="with_docstring",
+        help="Only replace existing docstrings.",
+    )
+    group.add_argument(
+        "--add",
+        action="store_const",
+        dest="extraction_option",
+        const="without_docstring",
+        help="Only add new docstrings (default).",
+    )
+    group.add_argument(
+        "--all",
+        action="store_const",
+        dest="extraction_option",
+        const="all",
+        help="Process all functions / classes.",
+    )
+
+    parser.set_defaults(extraction_option="without_docstring")
+
     args = parser.parse_args()
+
+    target_path = Path(args.path).resolve()
 
     files_to_process = []
     if os.path.isfile(args.path):
@@ -75,7 +108,7 @@ def main() -> None:
             logging.error(f"File {args.path} is not a Python file.")
             return
     elif os.path.isdir(args.path):
-        files_to_process.extend(glob.iglob(f"{args.path}/**/*.py", recursive=True))
+        files_to_process.extend(target_path.rglob("*.py"))
     else:
         logging.error(f"Path {args.path} does not exist.")
         return
@@ -94,4 +127,4 @@ def main() -> None:
     )
 
     for file in files_to_process:
-        process_single_file(file, llm)
+        process_single_file(file, llm, args.extraction_option)
