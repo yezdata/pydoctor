@@ -7,13 +7,13 @@ def main() -> None:
     merged_model_path = "models/smollm2_1_7b_instruct_merged"
 
     base = AutoModelForCausalLM.from_pretrained(
-        "HuggingFaceTB/SmolLM2-1.7B-Instruct", dtype=torch.float32
+        "HuggingFaceTB/SmolLM2-1.7B-Instruct", dtype=torch.float16
     )
     model = PeftModel.from_pretrained(
         base, "models/smollm2_1_7b_instruct/finetune_instruct/epoch_3"
     )
     model = model.merge_and_unload()
-    model.save_pretrained(merged_model_path)
+    model.save_pretrained(merged_model_path, safe_serialization=True)
 
     tokenizer = AutoTokenizer.from_pretrained(
         "HuggingFaceTB/SmolLM2-1.7B-Instruct", use_fast=False

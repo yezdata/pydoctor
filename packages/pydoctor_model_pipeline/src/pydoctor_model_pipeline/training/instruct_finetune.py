@@ -36,6 +36,36 @@ CACHE_DIR = "/kaggle/working/datasets_cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 
+class DataCollatorForCausalLMWithCustomLabels(DataCollatorWithPadding):
+    def __init__(self, tokenizer, pad_to_multiple_of: int | None = None):
+
+        super().__init__(
+            tokenizer=tokenizer,
+            padding=True,
+            pad_to_multiple_of=pad_to_multiple_of,
+            return_tensors="pt",
+        )
+
+    def __call__(self, features):
+
+        labels = [f.pop("labels") if "labels" in f else None for f in features]
+
+        batch = super().__call__(features)
+
+        if labels[0] is not None:
+            max_label_length = batch["input_ids"].shape[1]
+            padded_labels = []
+            for l in labels:
+                l_list = l.tolist() if isinstance(l, torch.Tensor) else list(l)
+                remainder = max_label_length - len(l_list)
+
+                padded_labels.append(l_list + [-100] * remainder)
+
+            batch["labels"] = torch.tensor(padded_labels, dtype=torch.long)
+
+        return batch
+
+
 def compute_loss(
     criterion: nn.CrossEntropyLoss,
     logits: torch.Tensor,
@@ -49,6 +79,7 @@ def compute_loss(
 
 
 def evaluate(
+    accelerator: Accelerator,
     criterion: nn.CrossEntropyLoss,
     model: AutoModelForCausalLM,
     dataloader: torch.utils.data.DataLoader,
@@ -68,7 +99,8 @@ def evaluate(
             ).logits
             loss = compute_loss(criterion, logits, batch["labels"])
 
-            total_loss += loss.detach().item()
+            gathered_loss = accelerator.gather(loss.detach())
+            total_loss += gathered_loss.mean().item()
             steps_run += 1
 
         avg_eval_loss = total_loss / max(steps_run, 1)
@@ -117,7 +149,7 @@ def main(
     )
 
     tokenized_train_ds = load_from_disk(config.finetune.tokenized_ds_dir).with_format(
-        "torch"
+        type="torch", columns=["input_ids", "attention_mask", "labels"]
     )
 
     # REMOVE LONG SEQUENCES
@@ -138,8 +170,8 @@ def main(
         test_indices_cache_file_name=os.path.join(CACHE_DIR, "test_indices.cache"),
     )
 
-    data_collator = DataCollatorWithPadding(
-        tokenizer=tokenizer, padding=True, pad_to_multiple_of=8, return_tensors="pt"
+    data_collator = DataCollatorForCausalLMWithCustomLabels(
+        tokenizer=tokenizer, pad_to_multiple_of=8
     )
 
     train_dataloader = torch.utils.data.DataLoader(
@@ -261,6 +293,7 @@ def main(
         else:
             avg_train_loss = accelerator.gather(loss.detach()).mean().item()
         eval_loss, perplexity = evaluate(
+            accelerator,
             criterion,
             model,
             eval_dataloader,
