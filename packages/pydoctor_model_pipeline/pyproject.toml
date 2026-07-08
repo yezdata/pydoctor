@@ -33,3 +33,6 @@ prepare_finetune = "pydoctor_model_pipeline.synthetic_data_prep.prepare_finetune
 
 run_pretrain = "pydoctor_model_pipeline.training.pretrain:main"
 run_finetune = " pydoctor_model_pipeline.training.finetune:main"
+
+
+merge_lora = "pydoctor_model_pipeline.utils.merge_lora:main"

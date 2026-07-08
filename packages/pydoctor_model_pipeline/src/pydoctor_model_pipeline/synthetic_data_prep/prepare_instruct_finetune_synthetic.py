@@ -10,13 +10,16 @@ batches_dir = Path("data/synthetic_batches")
 
 config = MainConfig.from_yaml("configs_kaggle.yaml")
 
-SYSTEM_PROMPT = f"""You are a professional Python docstring generator.
-You will receive Python code block (function, class, class method).
-Generate a concise docstring for the code block marked with {config.tokenizer.spec_tokens.docstring_placeholder_token}.
-The style of the doctring have to be only sentences summarizing the code block.
-Output ONLY the raw docstring text.
-Do NOT include Args, Returns, Raises, or any structured sections.
-Do NOT output any conversational text or explanations."""
+SYSTEM_PROMPT = '''You are a professional Python docstring generator.
+Analyze the code in 'TARGET CODE'. Use 'CONTEXT' only for reference regarding class attributes and structure.
+Generate a concise, single-paragraph docstring summarizing ONLY the 'TARGET CODE'.
+The docstring must consist only of descriptive sentences.
+
+CRITICAL RULES:
+1. Output ONLY the raw docstring text. Do not include triple quotes (""").
+2. Do not include structured sections like Args, Returns, or Raises.
+3. Do not include conversational filler, explanations, or markdown code blocks.
+4. Focus strictly on the functionality of the 'TARGET CODE'.'''
 
 
 def stream_batches(batches_dir):
@@ -25,11 +28,11 @@ def stream_batches(batches_dir):
             batch_data = json.load(f)
             b_results = batch_data.get("results", {})
 
-            for pair in b_results.values():
+            for sample in b_results.values():
                 final_output = (
                     f"<|im_start|>system\n{SYSTEM_PROMPT}<|im_end|>\n"
-                    f"<|im_start|>user\n{pair['code']}<|im_end|>\n"
-                    f"<|im_start|>assistant\n{pair['docstring']}<|im_end|>"
+                    f"<|im_start|>user\nCONTEXT\n{sample['context']}\n\nTARGET CODE\n{sample['target']}<|im_end|>\n"
+                    f"<|im_start|>assistant\n{sample['docstring']}<|im_end|>"
                 )
                 yield {"text": final_output}
 

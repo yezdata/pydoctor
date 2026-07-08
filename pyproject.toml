@@ -38,7 +38,9 @@ torch = [
 exclude = [
     ".venv",
     "**/__pycache__",
-    "data"
+    "data",
+    "llama.cpp"
+
 ]
 
 

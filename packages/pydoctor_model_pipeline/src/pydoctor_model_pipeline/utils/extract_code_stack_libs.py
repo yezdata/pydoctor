@@ -4,6 +4,7 @@ import warnings
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 
 import libcst as cst
+from libcst.metadata import MetadataWrapper
 from datasets import Dataset, load_dataset
 import os
 from dotenv import load_dotenv
@@ -65,11 +66,14 @@ def parse_code(content: str) -> list[dict]:
             return []
 
         cst_tree = cst.parse_module(content)
+        wrapper = MetadataWrapper(cst_tree)
+
         extractor = CodeExtractor(
             extraction_options="with_docstring",
         )
-        cst_tree.visit(extractor)
-        return extractor.extracted_blocks
+        wrapper.visit(extractor)
+
+        return extractor.extracted_blocks.values()
     except (cst.ParserSyntaxError, Exception):
         print("Error parsing code content. Skipping this file.")
         return []
@@ -101,7 +105,6 @@ def extract_code(save_path: str) -> None:
 
     num_workers = 16
     print(f"Workers: {num_workers}")
-
 
     if not os.path.exists(LIBS_DIR):
         os.makedirs(LIBS_DIR, exist_ok=True)

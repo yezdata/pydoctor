@@ -1,5 +1,6 @@
 import libcst as cst
 from libcst import matchers as m
+from libcst.metadata import PositionProvider
 from collections import deque
 from typing import Literal
 
@@ -29,16 +30,6 @@ def strip_docstring_from_node(
     return node.with_changes(
         body=node.body.with_changes(body=new_body)
     ), docstring.strip()
-
-
-# def insert_docstring_token(
-#     node: cst.FunctionDef | cst.ClassDef, docstring_token: str
-# ) -> cst.CSTNode:
-#     docstring_node = cst.SimpleStatementLine(
-#         body=[cst.Expr(value=cst.SimpleString(value=docstring_token))]
-#     )
-#     new_body = [docstring_node] + list(node.body.body)
-#     return node.with_changes(body=node.body.with_changes(body=new_body))
 
 
 class ClassSkeletonTransformer(cst.CSTTransformer):
@@ -79,6 +70,8 @@ class ClassSkeletonTransformer(cst.CSTTransformer):
 
 
 class CodeExtractor(cst.CSTVisitor):
+    METADATA_DEPENDENCIES = (PositionProvider,)
+
     def __init__(
         self,
         extraction_options: Literal["with_docstring", "without_docstring", "all"],
@@ -91,10 +84,16 @@ class CodeExtractor(cst.CSTVisitor):
         self._class_skeletons = {}
         self.stack = deque()
 
-        self.extracted_blocks = []
+        # "line_col": {target, context}
+        self.extracted_blocks = {}
 
     def visit_Module(self, node: cst.Module) -> None:
         self.root_module = node
+
+    def _get_node_id(self, node: cst.CSTNode) -> str:
+        """Generate unique ID based on code position"""
+        pos = self.get_metadata(PositionProvider, node)
+        return f"{pos.start.line}_{pos.start.column}"
 
     def _return_code(self, docstring: str | None) -> bool:
         if self.extraction_options == "with_docstring" and not docstring:
@@ -104,6 +103,8 @@ class CodeExtractor(cst.CSTVisitor):
         return True
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> bool:
+        node_id = self._get_node_id(node)
+
         # is in class
         if len(self.stack) > 0 and isinstance(self.stack[-1], cst.ClassDef):
             if node.name.value == "__init__" or is_property_or_special(node):
@@ -112,8 +113,8 @@ class CodeExtractor(cst.CSTVisitor):
 
             # not in __init__ -> method
             parent_class = self.stack[-1]
-
-            class_code = self._class_skeletons.get(id(parent_class), "")
+            parent_id = self._get_node_id(parent_class)
+            class_code = self._class_skeletons.get(parent_id, "")
 
             clean_node, docstring = strip_docstring_from_node(node)
 
@@ -133,7 +134,7 @@ class CodeExtractor(cst.CSTVisitor):
             func_code = self.root_module.code_for_node(clean_node).strip()
             code = {"context": "Independent code block", "target": func_code}
 
-        self.extracted_blocks.append(code)
+        self.extracted_blocks[node_id] = code
         self.stack.append(node)
         return False
 
@@ -141,12 +142,14 @@ class CodeExtractor(cst.CSTVisitor):
         self.stack.pop()
 
     def visit_ClassDef(self, node: cst.ClassDef) -> bool:
+        node_id = self._get_node_id(node)
+
         skeleton_transformer = ClassSkeletonTransformer()
         class_no_methods = node.visit(skeleton_transformer)
 
         clean_class_no_methods, docstring = strip_docstring_from_node(class_no_methods)
 
-        self._class_skeletons[id(node)] = self.root_module.code_for_node(
+        self._class_skeletons[node_id] = self.root_module.code_for_node(
             clean_class_no_methods
         ).strip()
 
@@ -159,9 +162,10 @@ class CodeExtractor(cst.CSTVisitor):
             cst.Module(body=skeleton_transformer.extracted_context)
         ).strip()
 
-        self.extracted_blocks.append(
-            {"target": class_code, "context": method_context_code}
-        )
+        self.extracted_blocks[node_id] = {
+            "target": class_code,
+            "context": method_context_code,
+        }
 
         self.stack.append(node)
         return True

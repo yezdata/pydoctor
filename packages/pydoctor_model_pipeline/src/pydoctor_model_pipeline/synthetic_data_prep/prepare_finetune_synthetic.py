@@ -30,8 +30,8 @@ def stream_batches(batches_dir):
             batch_data = json.load(f)
             b_results = batch_data.get("results", {})
 
-            for pair in b_results.values():
-                final_output = f"{pair['code']}\n{config.tokenizer.spec_tokens.docstring_start_token}{pair['docstring']}{config.tokenizer.eos_token}"
+            for sample in b_results.values():
+                final_output = f"{sample['target']}\n{config.tokenizer.spec_tokens.docstring_start_token}{sample['docstring']}{config.tokenizer.eos_token}"
 
                 yield {"text": final_output}
 
