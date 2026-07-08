@@ -32,8 +32,11 @@ def packing_generator(
     buffer = deque()
 
     for sample in dataset:
-        tokens = tokenize_examples(
-            {"text": f"{sample['text']}{tokenizer.eos_token}"}, tokenizer
+        tokens = tokenizer(
+            f"{sample['text']}{tokenizer.eos_token}",
+            add_special_tokens=False,
+            padding=False,
+            truncation=False,
         )["input_ids"]  # type: ignore
 
         buffer.extend(tokens)
@@ -47,15 +50,36 @@ def packing_generator(
             }
 
 
-def tokenize_examples(
-    example: dict, tokenizer: PreTrainedTokenizerFast
-) -> BatchEncoding:
-    return tokenizer(
-        example["text"],
-        add_special_tokens=False,
-        padding=False,
-        truncation=False,
-    )
+def tokenize_and_mask_sample(
+    examples: dict, tokenizer: PreTrainedTokenizerFast
+) -> dict:
+    """
+    Tokenize prompt and completion separately and construct correct labels
+    """
+    batch_input_ids = []
+    batch_attention_mask = []
+    batch_labels = []
+
+    for prompt_str, completion_str in zip(examples["prompt"], examples["completion"]):
+        prompt_ids = tokenizer(prompt_str, add_special_tokens=False)["input_ids"]
+        completion_ids = tokenizer(completion_str, add_special_tokens=False)[
+            "input_ids"
+        ]
+
+        input_ids = prompt_ids + completion_ids
+        attention_mask = [1] * len(input_ids)
+
+        labels = [-100] * len(prompt_ids) + completion_ids
+
+        batch_input_ids.append(input_ids)
+        batch_attention_mask.append(attention_mask)
+        batch_labels.append(labels)
+
+    return {
+        "input_ids": batch_input_ids,
+        "attention_mask": batch_attention_mask,
+        "labels": batch_labels,
+    }
 
 
 def tokenize_ds(
@@ -88,12 +112,12 @@ def tokenize_ds(
         return final_ds
     else:
         tokenized_ds = ds.map(
-            tokenize_examples,
+            tokenize_and_mask_sample,
             fn_kwargs={"tokenizer": tokenizer},
             batched=True,
             batch_size=batch_size,
             num_proc=num_workers,
-            remove_columns=["text"],
+            remove_columns=["prompt", "completion"],
             keep_in_memory=True,
         )
         return tokenized_ds

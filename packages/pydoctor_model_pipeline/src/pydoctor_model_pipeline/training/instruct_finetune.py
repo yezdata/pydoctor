@@ -19,13 +19,12 @@ from transformers import (
 )
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 import bitsandbytes as bnb
-from datasets import load_from_disk, concatenate_datasets
+from datasets import load_from_disk
 from tqdm import tqdm
-import glob
 import math
 
 from tokenizer import get_instruct_tokenizer
-from config_models import MainConfig, FinetuneConfig
+from config_models import MainConfig
 
 
 SAVE_PATH = "/kaggle/working/models/v1/finetune_instruct"
@@ -40,37 +39,10 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 def compute_loss(
     criterion: nn.CrossEntropyLoss,
     logits: torch.Tensor,
-    input_ids: torch.Tensor,
-    assistant_sequence: torch.Tensor,
-    pad_token_id: int,
+    labels: torch.Tensor,
 ) -> torch.Tensor:
     shift_logits = logits[..., :-1, :].contiguous()
-    shift_targets = input_ids[..., 1:].contiguous()
-
-    loss_mask = torch.zeros_like(shift_targets, dtype=torch.bool)
-
-    seq_len = assistant_sequence.shape[0]
-    batch_size = input_ids.shape[0]
-
-    for i in range(batch_size):
-        sample_ids = input_ids[i]
-
-        match_idx = -1
-        for idx in range(len(sample_ids) - seq_len + 1):
-            if torch.equal(sample_ids[idx : idx + seq_len], assistant_sequence):
-                match_idx = idx
-                break
-
-        if match_idx != -1:
-            start_calculating_idx = match_idx + seq_len - 1
-            loss_mask[i, start_calculating_idx:] = True
-
-    is_not_pad = shift_targets != pad_token_id
-    loss_mask = loss_mask & is_not_pad
-
-    shift_targets = torch.where(
-        loss_mask, shift_targets, torch.tensor(-100, device=shift_targets.device)
-    )
+    shift_targets = labels[..., 1:].contiguous()
 
     B, S, V = shift_logits.shape
     return criterion(shift_logits.view(B * S, V), shift_targets.view(B * S))
@@ -80,8 +52,6 @@ def evaluate(
     criterion: nn.CrossEntropyLoss,
     model: AutoModelForCausalLM,
     dataloader: torch.utils.data.DataLoader,
-    start_token_ids: torch.Tensor,
-    pad_token_id: int,
     max_eval_steps: int | None = None,
 ) -> tuple[float, float]:
     model.eval()
@@ -93,10 +63,10 @@ def evaluate(
             if max_eval_steps is not None and steps_run >= max_eval_steps:
                 break
 
-            outputs = model(batch["input_ids"]).logits
-            loss = compute_loss(
-                criterion, outputs, batch["input_ids"], start_token_ids, pad_token_id
-            )
+            logits = model(
+                input_ids=batch["input_ids"], attention_mask=batch["attention_mask"]
+            ).logits
+            loss = compute_loss(criterion, logits, batch["labels"])
 
             total_loss += loss.detach().item()
             steps_run += 1
@@ -174,7 +144,7 @@ def main(
     )
 
     data_collator = DataCollatorWithPadding(
-        tokenizer=tokenizer, padding=True, pad_to_multiple_of=8
+        tokenizer=tokenizer, padding=True, pad_to_multiple_of=8, return_tensors="pt"
     )
 
     train_dataloader = torch.utils.data.DataLoader(
@@ -260,14 +230,14 @@ def main(
 
         for step, batch in train_bar:
             with accelerator.accumulate(model):
-                outputs = model(batch["input_ids"]).logits
+                logits = model(
+                    input_ids=batch["input_ids"], attention_mask=batch["attention_mask"]
+                ).logits
 
                 loss = compute_loss(
                     criterion,
-                    outputs,
-                    batch["input_ids"],
-                    loss_start_token_ids,
-                    tokenizer.pad_token_id,
+                    logits,
+                    batch["labels"],
                 )
 
                 accelerator.backward(loss)
