@@ -109,11 +109,6 @@ def main(
         mixed_precision="no",
     )
 
-    loss_start_token_ids = torch.tensor(
-        tokenizer.encode("<|im_start|>assistant", add_special_tokens=False),
-        device=accelerator.device,
-    )
-
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         token=HF_TOKEN,
@@ -269,8 +264,6 @@ def main(
             criterion,
             model,
             eval_dataloader,
-            loss_start_token_ids,
-            pad_token_id=tokenizer.pad_token_id,
             max_eval_steps=None,
         )
         model.train()

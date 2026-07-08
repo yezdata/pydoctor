@@ -4,7 +4,6 @@ import yaml
 
 
 class SpecialTokens(BaseModel):
-    docstring_placeholder_token: str
     docstring_start_token: str | None
 
 

@@ -3,7 +3,6 @@ tokenizer:
   eos_token: "<|endoftext|>"
   spec_tokens:
     docstring_start_token: "<startofdocstring>"
-    docstring_placeholder_token: "<docstring_place>"
 
 decoder:
   d_model: 768

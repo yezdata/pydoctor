@@ -22,22 +22,10 @@ BASE_MODEL_PATH = "models/v1/pretrain/epoch_1/step_280000"
 def compute_loss(
     criterion: nn.CrossEntropyLoss,
     logits: torch.Tensor,
-    input_ids: torch.Tensor,
-    start_token_ids: torch.Tensor,
-    pad_token_id: int,
+    labels: torch.Tensor,
 ) -> torch.Tensor:
     shift_logits = logits[..., :-1, :].contiguous()
-    shift_targets = input_ids[..., 1:]
-
-    start_mask = torch.isin(input_ids[..., :-1], start_token_ids)
-
-    is_docstring = torch.cumsum(start_mask, dim=-1) > 0
-
-    is_not_pad = shift_targets != pad_token_id
-
-    loss_mask = is_docstring & is_not_pad
-
-    shift_targets = torch.where(loss_mask, shift_targets, -100)
+    shift_targets = labels[..., 1:].contiguous()
 
     B, S, V = shift_logits.shape
     return criterion(shift_logits.view(B * S, V), shift_targets.view(B * S))
@@ -47,8 +35,6 @@ def evaluate(
     criterion: nn.CrossEntropyLoss,
     model: DecoderModel,
     dataloader: torch.utils.data.DataLoader,
-    start_token_ids: torch.Tensor,
-    pad_token_id: int,
     max_eval_steps: int | None = None,
 ) -> tuple[float, float]:
     model.eval()
@@ -60,10 +46,10 @@ def evaluate(
             if max_eval_steps is not None and steps_run >= max_eval_steps:
                 break
 
-            outputs = model(batch["input_ids"])
-            loss = compute_loss(
-                criterion, outputs, batch["input_ids"], start_token_ids, pad_token_id
-            )
+            logits = model(
+                input_ids=batch["input_ids"], attention_mask=batch["attention_mask"]
+            ).logits
+            loss = compute_loss(criterion, logits, batch["labels"])
 
             total_loss += loss.detach().item()
             steps_run += 1
@@ -99,13 +85,6 @@ def main() -> None:
     accelerator = Accelerator(
         gradient_accumulation_steps=config.finetune.gradient_accumulation_steps,
         mixed_precision="bf16",
-    )
-
-    loss_start_token_ids = torch.tensor(
-        tokenizer.encode(
-            config.tokenizer.spec_tokens.docstring_start_token, add_special_tokens=False
-        ),
-        device=accelerator.device,
     )
 
     model = DecoderModel(
@@ -150,7 +129,7 @@ def main() -> None:
     split_ds = tokenized_train_ds.train_test_split(test_size=0.01, seed=6767)
 
     data_collator = DataCollatorWithPadding(
-        tokenizer=tokenizer, padding=True, pad_to_multiple_of=8
+        tokenizer=tokenizer, padding=True, pad_to_multiple_of=8, return_tensors="pt"
     )
 
     train_dataloader = torch.utils.data.DataLoader(
@@ -205,14 +184,14 @@ def main() -> None:
             enumerate(train_dataloader), total=len(train_dataloader)
         ):
             with accelerator.accumulate(model):
-                outputs = model(batch["input_ids"])
+                logits = model(
+                    input_ids=batch["input_ids"], attention_mask=batch["attention_mask"]
+                ).logits
 
                 loss = compute_loss(
                     criterion,
-                    outputs,
-                    batch["input_ids"],
-                    loss_start_token_ids,
-                    tokenizer.pad_token_id,
+                    logits,
+                    batch["labels"],
                 )
 
                 accelerator.backward(loss)
@@ -242,8 +221,6 @@ def main() -> None:
             criterion,
             model,
             eval_dataloader,
-            loss_start_token_ids,
-            pad_token_id=tokenizer.pad_token_id,
             max_eval_steps=None,
         )
         model.train()

@@ -23,6 +23,7 @@ from pydoctor_model_pipeline.utils.tokenizer import get_pretrain_tokenizer
 SAVE_PATH = "models/v1/pretrain"
 
 
+# TODO: predpocitat masku dopredu pro loss a ulozit v labels do tokenized_ds (stejne jako finetune + prepare_finetune_data):
 def compute_loss(
     criterion: nn.CrossEntropyLoss,
     logits: torch.Tensor,

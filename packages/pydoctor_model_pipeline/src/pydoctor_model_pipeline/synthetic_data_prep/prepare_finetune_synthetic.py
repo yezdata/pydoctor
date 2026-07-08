@@ -31,24 +31,26 @@ def stream_batches(batches_dir):
             b_results = batch_data.get("results", {})
 
             for sample in b_results.values():
-                final_output = f"{sample['target']}\n{config.tokenizer.spec_tokens.docstring_start_token}{sample['docstring']}{config.tokenizer.eos_token}"
+                prompt = f"{sample['target']}\n{config.tokenizer.spec_tokens.docstring_start_token}"
 
-                yield {"text": final_output}
+                completion = f"{sample['docstring']}{config.tokenizer.eos_token}"
+
+                yield {"prompt": prompt, "completion": completion}
 
 
 def main() -> None:
-    features = Features({"text": Value("string")})
+    features = Features({"prompt": Value("string"), "completion": Value("string")})
 
-    final_ds = Dataset.from_generator(
+    raw_ds = Dataset.from_generator(
         lambda: stream_batches(batches_dir), features=features, keep_in_memory=False
     )
 
-    print(final_ds.to_pandas().head())
+    print(raw_ds.to_pandas().head())
 
     tokenizer = get_finetune_tokenizer(config.tokenizer)
 
     tokenized_ds = tokenize_ds(
-        ds=final_ds, packing=False, tokenizer=tokenizer, num_workers=16, batch_size=256
+        ds=raw_ds, packing=False, tokenizer=tokenizer, num_workers=16, batch_size=512
     )
 
     tokenized_ds.save_to_disk(

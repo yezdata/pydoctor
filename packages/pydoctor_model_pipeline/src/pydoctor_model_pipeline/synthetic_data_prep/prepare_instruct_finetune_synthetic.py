@@ -37,7 +37,6 @@ def stream_batches(batches_dir):
                     f"{IM_START}user\nCONTEXT\n{sample['context']}\n\nTARGET CODE\n{sample['target']}{IM_END}\n"
                     f"{IM_START}assistant\n"
                 )
-                # Pouze generovaný text asistenta + ukončovací tag
                 completion = f"{sample['docstring']}{IM_END}"
 
                 yield {"prompt": prompt, "completion": completion}

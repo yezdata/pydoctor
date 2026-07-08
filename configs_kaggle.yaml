@@ -3,7 +3,6 @@ tokenizer:
   eos_token: "<|endoftext|>"
   spec_tokens:
     docstring_start_token: null
-    docstring_placeholder_token: "<docstring_place>"
 
 finetune:
   tokenized_ds_dir: "/kaggle/input/datasets/vclavje/tokenized-synthetic-the-stack-libs-instruct/"
