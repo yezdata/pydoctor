@@ -19,6 +19,36 @@ SAVE_PATH = "models/v2/finetune"
 BASE_MODEL_PATH = "models/v1/pretrain/epoch_1/step_280000"
 
 
+class DataCollatorForCausalLMWithCustomLabels(DataCollatorWithPadding):
+    def __init__(self, tokenizer, pad_to_multiple_of: int | None = None):
+
+        super().__init__(
+            tokenizer=tokenizer,
+            padding=True,
+            pad_to_multiple_of=pad_to_multiple_of,
+            return_tensors="pt",
+        )
+
+    def __call__(self, features):
+
+        labels = [f.pop("labels") if "labels" in f else None for f in features]
+
+        batch = super().__call__(features)
+
+        if labels[0] is not None:
+            max_label_length = batch["input_ids"].shape[1]
+            padded_labels = []
+            for l in labels:
+                l_list = l.tolist() if isinstance(l, torch.Tensor) else list(l)
+                remainder = max_label_length - len(l_list)
+
+                padded_labels.append(l_list + [-100] * remainder)
+
+            batch["labels"] = torch.tensor(padded_labels, dtype=torch.long)
+
+        return batch
+
+
 def compute_loss(
     criterion: nn.CrossEntropyLoss,
     logits: torch.Tensor,
@@ -113,7 +143,7 @@ def main() -> None:
     accelerator.print(f"Trainable parameters: {trainable_params:,}")
 
     tokenized_train_ds = load_from_disk(config.finetune.tokenized_ds_dir).with_format(
-        "torch"
+        type="torch", columns=["input_ids", "attention_mask", "labels"]
     )
 
     # REMOVE LONG SEQUENCES
@@ -128,8 +158,8 @@ def main() -> None:
 
     split_ds = tokenized_train_ds.train_test_split(test_size=0.01, seed=6767)
 
-    data_collator = DataCollatorWithPadding(
-        tokenizer=tokenizer, padding=True, pad_to_multiple_of=8, return_tensors="pt"
+    data_collator = DataCollatorForCausalLMWithCustomLabels(
+        tokenizer=tokenizer, pad_to_multiple_of=8
     )
 
     train_dataloader = torch.utils.data.DataLoader(
