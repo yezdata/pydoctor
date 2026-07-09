@@ -17,3 +17,5 @@ data/
 models/
 tokenizers/
 llama.cpp/
+dist/
+report.xml

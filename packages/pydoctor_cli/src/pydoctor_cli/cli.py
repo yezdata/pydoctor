@@ -128,3 +128,7 @@ def main() -> None:
 
     for file in files_to_process:
         process_single_file(file, llm, args.extraction_option)
+
+
+if __name__ == "__main__":
+    main()
