@@ -27,7 +27,7 @@ def generate_docstring(llm: Llama, sample: dict) -> str:
 
     response = llm(
         prompt,
-        temperature=0.9,
+        temperature=0.7,
         top_k=50,
         top_p=0.90,
         max_tokens=256,
