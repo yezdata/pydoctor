@@ -1,88 +1,18 @@
 import libcst as cst
 from libcst.metadata import MetadataWrapper
 from llama_cpp import Llama
-from argparse import ArgumentParser
 import logging
 import os
 import sys
 from typing import Literal
 from pathlib import Path
-import urllib.request
 
 from pydoctor_cli.inference import generate_docstring
+from pydoctor_cli.model_cache_utils import get_model_path
 from pydoctor_cli.logging_utils import setup_logging
+from pydoctor_cli.argparse_utils import get_argparser
 from pydoctor_shared_cst.docstring_transformer import DocstringTransformer
 from pydoctor_shared_cst.code_extractor import CodeExtractor
-
-
-def get_model_path(repo_id: str, filename: str) -> Path:
-    """
-    Downloads model into cache directory if not already present and returns the path to the model file.
-    """
-    if os.name == "nt":
-        base_cache = Path(os.getenv("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
-    else:
-        base_cache = Path(os.getenv("XDG_CACHE_HOME", Path.home() / ".cache"))
-
-    cache_dir = base_cache / "pydoctor"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-
-    model_path = cache_dir / filename
-
-    if model_path.exists():
-        return model_path
-
-    url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
-    logging.info("Downloading pydoctor_model...")
-
-    tmp_model_path = model_path.with_suffix(".download")
-    try:
-        with (
-            urllib.request.urlopen(url) as response,
-            open(tmp_model_path, "wb") as out_file,
-        ):
-            total_size = response.getheader("Content-Length")
-            if total_size is not None:
-                total_size = int(total_size)
-
-            downloaded = 0
-            block_size = 1024 * 1024  # 1MB
-
-            while True:
-                block = response.read(block_size)
-                if not block:
-                    break
-                out_file.write(block)
-                downloaded += len(block)
-
-                if total_size:
-                    percent = downloaded / total_size
-                    downloaded_mb = downloaded / (1024 * 1024)
-                    total_mb = total_size / (1024 * 1024)
-
-                    bar_length = 40
-                    filled_length = int(round(bar_length * percent))
-                    bar = "█" * filled_length + "-" * (bar_length - filled_length)
-
-                    sys.stdout.write(
-                        f"\rDownloading pydoctor_model: |{bar}| {percent:.1%} ({downloaded_mb:.1f}/{total_mb:.1f} MB)"
-                    )
-                    sys.stdout.flush()
-
-            sys.stdout.write("\n")
-            sys.stdout.flush()
-
-        tmp_model_path.replace(model_path)
-        return model_path
-
-    except Exception:
-        sys.stdout.write("\n")
-        if tmp_model_path.exists():
-            try:
-                tmp_model_path.unlink()
-            except OSError:
-                pass
-        raise
 
 
 def process_single_file(
@@ -120,23 +50,35 @@ def process_single_file(
             f"Extracted {extracted_blocks_count} code blocks from {file_path}"
         )
 
-        llm_responses = {}
+        new_docstrings = {}
         for k, v in extractor.extracted_blocks.items():
+            node_name = v.pop("name", "unknown")
+
             docstring = generate_docstring(llm, v).strip().replace('"""', "'''")
+            if not docstring:
+                logging.warning(
+                    f"Model did not successfully generate docstring for {file_path.name}::{node_name}"
+                )
+                continue
+
             logging.debug(
-                f"Generated docstring in {file_path} at {k.split('_')[0]}:\n{docstring}\n"
+                f"Generated docstring for {file_path.name}::{node_name}:\n{docstring}\n"
             )
 
-            llm_responses[k] = f'"""{docstring}"""'
+            new_docstrings[k] = {"docstring": f'"""{docstring}"""', "name": node_name}
 
-        transformer = DocstringTransformer(generated_docstrings=llm_responses)
+        transformer = DocstringTransformer(new_docstrings=new_docstrings)
         modified_tree = wrapper.visit(transformer)
 
         if is_dry_run:
             for key, old_docstring in transformer.old_docstrings.items():
-                new_docstring = llm_responses.get(key, "")
+                docstring_info = new_docstrings.get(key, "")
+                new_docstring = docstring_info.get("docstring", "")
+                node_name = docstring_info.get("name", "unknown")
+                target_identifier = f"{file_path.name}::{node_name}"
+
                 logging.diff(
-                    str(file_path.name),
+                    target_identifier,
                     old_docstring,
                     new_docstring,
                 )
@@ -152,7 +94,7 @@ def process_single_file(
         return 0
     except Exception:
         logging.exception(f"Unexpected error processing file: {file_path}")
-        return 0
+        sys.exit(1)
 
     finally:
         if tmp_file_path.exists():
@@ -163,52 +105,7 @@ def process_single_file(
 
 
 def main() -> None:
-    parser = ArgumentParser(description="Process Python files and add docstrings.")
-    parser.add_argument(
-        "path",
-        type=str,
-        help="Python file or directory containing Python files to process.",
-    )
-
-    group = parser.add_mutually_exclusive_group()
-
-    group.add_argument(
-        "--replace",
-        action="store_const",
-        dest="extraction_option",
-        const="with_docstring",
-        help="Only replace existing docstrings.",
-    )
-    group.add_argument(
-        "--add",
-        action="store_const",
-        dest="extraction_option",
-        const="without_docstring",
-        help="Only add new docstrings (default).",
-    )
-    group.add_argument(
-        "--all",
-        action="store_const",
-        dest="extraction_option",
-        const="all",
-        help="Process all functions / classes.",
-    )
-
-    parser.set_defaults(extraction_option="without_docstring")
-
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Perform a dry run without modifying any files and show changes (default: False)",
-    )
-
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Turn on verbose output (default: False)",
-    )
-
+    parser = get_argparser()
     args = parser.parse_args()
 
     log_level = logging.DEBUG if args.verbose else logging.INFO

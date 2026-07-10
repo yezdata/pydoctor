@@ -73,7 +73,15 @@ def parse_code(content: str) -> list[dict]:
         )
         wrapper.visit(extractor)
 
-        return extractor.extracted_blocks.values()
+        batch_results = []
+        for block in extractor.extracted_blocks.values():
+            clean_block = {
+                "target": block.get("target"),
+                "context": block.get("context"),
+            }
+            batch_results.append(clean_block)
+
+        return batch_results
     except (cst.ParserSyntaxError, Exception):
         print("Error parsing code content. Skipping this file.")
         return []

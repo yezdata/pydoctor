@@ -17,7 +17,7 @@ def add_custom_levels():
 
     logging.addLevelName(DIFF_LEVEL_NUM, "DIFF")
 
-    def diff_method(self, file_path: str, old_str: str, new_str: str, *args, **kws):
+    def diff_method(self, target_id: str, old_str: str, new_str: str, *args, **kws):
         if not self.isEnabledFor(DIFF_LEVEL_NUM):
             return
 
@@ -27,8 +27,8 @@ def add_custom_levels():
         diff = difflib.unified_diff(
             old_lines,
             new_lines,
-            fromfile=f"a/{file_path} (old docstring)",
-            tofile=f"b/{file_path} (new docstring)",
+            fromfile=f"a/{target_id} (old)",
+            tofile=f"b/{target_id} (new)",
             lineterm="",
         )
 
@@ -59,8 +59,8 @@ def add_custom_levels():
     logging.success = lambda msg, *args, **kws: logging.log(
         SUCCESS_LEVEL_NUM, msg, *args, **kws
     )
-    logging.diff = lambda file_path, old_str, new_str, *args, **kws: (
-        logging.getLogger().diff(file_path, old_str, new_str, *args, **kws)
+    logging.diff = lambda target_id, old_str, new_str, *args, **kws: (
+        logging.getLogger().diff(target_id, old_str, new_str, *args, **kws)
     )
 
 

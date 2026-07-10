@@ -1,4 +1,5 @@
 import libcst as cst
+import re
 from libcst import matchers as m
 from libcst.metadata import PositionProvider
 from collections import deque
@@ -102,46 +103,85 @@ class CodeExtractor(cst.CSTVisitor):
             return False
         return True
 
+    def _has_ignore_comment(self, node: cst.FunctionDef | cst.ClassDef) -> bool:
+        """Checks if the node has a '# pydoctor: ignore' comment either before or on the same line."""
+        ignore_regex = re.compile(r"pydoctor:\s*ignore", re.IGNORECASE)
+
+        if node.leading_lines:
+            for line in node.leading_lines:
+                if line.comment and ignore_regex.search(line.comment.value):
+                    return True
+
+        if hasattr(node, "body") and hasattr(node.body, "header"):
+            trailing = node.body.header
+            if trailing and hasattr(trailing, "comment") and trailing.comment:
+                if ignore_regex.search(trailing.comment.value):
+                    return True
+
+        return False
+
     def visit_FunctionDef(self, node: cst.FunctionDef) -> bool:
+        if self._has_ignore_comment(node):
+            return False
+
         node_id = self._get_node_id(node)
+
+        full_name = node.name.value
 
         # is in class
         if len(self.stack) > 0 and isinstance(self.stack[-1], cst.ClassDef):
             if node.name.value == "__init__" or is_property_or_special(node):
-                self.stack.append(node)
+                # self.stack.append(node)
                 return False
 
             # not in __init__ -> method
             parent_class = self.stack[-1]
+            full_name = f"{parent_class.name.value}.{node.name.value}"
+
             parent_id = self._get_node_id(parent_class)
             class_code = self._class_skeletons.get(parent_id, "")
 
             clean_node, docstring = strip_docstring_from_node(node)
 
             if not self._return_code(docstring):
-                self.stack.append(node)
+                # self.stack.append(node)
                 return False
 
             method_code = self.root_module.code_for_node(clean_node).strip()
-            code = {"context": class_code, "target": method_code}
+            code = {
+                "context": class_code,
+                "target": method_code,
+                "name": full_name,
+            }
 
         else:
             clean_node, docstring = strip_docstring_from_node(node)
             if not self._return_code(docstring):
-                self.stack.append(node)
+                # self.stack.append(node)
                 return False
 
             func_code = self.root_module.code_for_node(clean_node).strip()
-            code = {"context": "Independent code block", "target": func_code}
+            code = {
+                "context": "Independent code block",
+                "target": func_code,
+                "name": full_name,
+            }
 
         self.extracted_blocks[node_id] = code
-        self.stack.append(node)
+        # self.stack.append(node)
         return False
 
-    def leave_FunctionDef(self, original_node: cst.FunctionDef) -> None:
-        self.stack.pop()
+    # def leave_FunctionDef(self, original_node: cst.FunctionDef) -> None:
+    #     self.stack.pop()
 
     def visit_ClassDef(self, node: cst.ClassDef) -> bool:
+        if self._has_ignore_comment(node):
+            return False
+
+        # dont extract nested classes
+        if any(isinstance(n, cst.ClassDef) for n in self.stack):
+            return False
+
         node_id = self._get_node_id(node)
 
         skeleton_transformer = ClassSkeletonTransformer()
@@ -153,8 +193,9 @@ class CodeExtractor(cst.CSTVisitor):
             clean_class_no_methods
         ).strip()
 
+        self.stack.append(node)
+
         if not self._return_code(docstring):
-            self.stack.append(node)
             return True
 
         class_code = self.root_module.code_for_node(clean_class_no_methods).strip()
@@ -165,10 +206,11 @@ class CodeExtractor(cst.CSTVisitor):
         self.extracted_blocks[node_id] = {
             "target": class_code,
             "context": method_context_code,
+            "name": node.name.value,
         }
 
-        self.stack.append(node)
         return True
 
     def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
-        self.stack.pop()
+        if self.stack and self.stack[-1] is original_node:
+            self.stack.pop()

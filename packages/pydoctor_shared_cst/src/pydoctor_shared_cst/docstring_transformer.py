@@ -10,10 +10,10 @@ class DocstringTransformer(cst.CSTTransformer):
 
     def __init__(
         self,
-        generated_docstrings: dict[str, str],
+        new_docstrings: dict[str, dict[str, str]],
     ):
         super().__init__()
-        self.generated_docstrings = generated_docstrings
+        self.new_docstrings = new_docstrings
         self.transformed_blocks = 0
 
         self.old_docstrings = {}
@@ -43,7 +43,8 @@ class DocstringTransformer(cst.CSTTransformer):
     ) -> cst.FunctionDef:
         orig_node_id = self._get_node_id(original_node)
 
-        docstring = self.generated_docstrings.get(orig_node_id)
+        docstring_info = self.new_docstrings.get(orig_node_id)
+        docstring = docstring_info.get("docstring") if docstring_info else None
         if docstring is None:
             return updated_node
 
@@ -55,7 +56,8 @@ class DocstringTransformer(cst.CSTTransformer):
     ) -> cst.ClassDef:
         orig_node_id = self._get_node_id(original_node)
 
-        docstring = self.generated_docstrings.get(orig_node_id)
+        docstring_info = self.new_docstrings.get(orig_node_id)
+        docstring = docstring_info.get("docstring") if docstring_info else None
         if docstring is None:
             return updated_node
 
