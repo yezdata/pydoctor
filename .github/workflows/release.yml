@@ -89,7 +89,7 @@ jobs:
           SITE_PACKAGES=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
           echo "Site packages path: $SITE_PACKAGES"
 
-          CLI_SCRIPT="packages/pydoctor_cli/src/pydoctor_cli/cli.py
+          CLI_SCRIPT="packages/pydoctor_cli/src/pydoctor_cli/cli.py"
 
           if [ "${{ matrix.backend }}" = "cuda" ]; then
             if [ "${{ matrix.os }}" = "windows-latest" ]; then
