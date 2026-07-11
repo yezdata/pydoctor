@@ -10,18 +10,41 @@ import os
 
 from pydoctor_shared_cst.code_extractor import CodeExtractor
 from pydoctor_shared_cst.docstring_transformer import DocstringTransformer
-from pydoctor_cli.inference import generate_docstring
+from pydoctor_cli.utils.inference import generate_docstring
 
 
-def load_gitignore(target_path: Path) -> pathspec.PathSpec:
-    gitignore_path = target_path / ".gitignore"
-    if gitignore_path.is_file():
+def find_project_root(target_path: Path) -> Path:
+    """
+    Find the project root by traversing up the directory structure
+        - Stops at the first directory containing .git, .gitignore, or .pydoctor_ignore.
+    If none is found, returns the original target_path.
+    """
+    current = target_path.resolve()
+
+    for parent in [current] + list(current.parents):
+        if (
+            (parent / ".git").exists()
+            or (parent / ".gitignore").exists()
+            or (parent / ".pydoctor_ignore").exists()
+        ):
+            return parent
+    return current
+
+
+def load_ignore_file(project_root: Path, filename: str) -> list[str]:
+    ignore_path = project_root / filename
+
+    if ignore_path.is_file():
         try:
-            with open(gitignore_path, "r", encoding="utf-8") as f:
-                return pathspec.PathSpec.from_lines("gitwildmatch", f.readlines())
+            with open(ignore_path, "r", encoding="utf-8") as f:
+                return [
+                    line.strip()
+                    for line in f
+                    if line.strip() and not line.startswith("#")
+                ]
         except OSError:
-            pass
-    return pathspec.PathSpec.from_lines("gitwildmatch", [])
+            logging.warning(f"Could not read ignore file: {ignore_path}")
+    return []
 
 
 def get_files_to_process(target_path: Path, default_ignore: set) -> list[Path]:
@@ -31,21 +54,36 @@ def get_files_to_process(target_path: Path, default_ignore: set) -> list[Path]:
             return []
         return [target_path]
 
-    spec = load_gitignore(target_path)
+    project_root = find_project_root(target_path)
+
+    ignore_lines = []
+    ignore_lines.extend(default_ignore)
+    ignore_lines.extend(load_ignore_file(project_root, ".gitignore"))
+    ignore_lines.extend(load_ignore_file(project_root, ".pydoctor_ignore"))
+
+    spec = pathspec.PathSpec.from_lines("gitwildmatch", ignore_lines)
 
     files_to_process = []
+
     for root, dirs, files in os.walk(target_path):
-        dirs[:] = [d for d in dirs if d not in default_ignore]
+        current_dir_path = Path(root).resolve()
+
+        active_dirs = []
+        for d in dirs:
+            dir_rel_path = str((current_dir_path / d).relative_to(project_root)) + "/"
+            if not spec.match_file(dir_rel_path):
+                active_dirs.append(d)
+        dirs[:] = active_dirs
+
         for file in files:
-            if file in default_ignore or not file.endswith(".py"):
+            if not file.endswith(".py"):
                 continue
-            file_path = Path(root) / file
-            try:
-                rel_path = file_path.relative_to(target_path)
-                if not spec.match_file(str(rel_path)):
-                    files_to_process.append(file_path)
-            except ValueError:
+
+            file_path = current_dir_path / file
+            rel_path = file_path.relative_to(project_root)
+            if not spec.match_file(str(rel_path)):
                 files_to_process.append(file_path)
+
     return files_to_process
 
 

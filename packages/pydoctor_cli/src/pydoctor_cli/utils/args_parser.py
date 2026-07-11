@@ -4,8 +4,10 @@ from argparse import ArgumentParser
 def get_argparser() -> ArgumentParser:
     parser = ArgumentParser(
         description="Update docstrings in Python files. "
-        "By default, it only adds new docstrings where they are missing. "
-        "Use '# pydoctor: ignore' comment to skip a function or class from processing."
+        "By default, it only adds new docstrings in code blocks where they are missing "
+        "and also ignores files and directories listed in .gitignore and base directories like .venv/, .git/... "
+        "You can also provide custom ignore rules in a .pydoctor_ignore file (same syntax as .gitignore) in the project root "
+        "or use '# pydoctor: ignore' comment to skip a class or function / method from processing."
     )
     parser.add_argument(
         "path",

@@ -1,5 +1,7 @@
 set -euo pipefail
 
+uv export --package pydoctor-cli --output-file cli_requirements.txt
+
 OUTPUT_DIR="dist"
 mkdir -p "$OUTPUT_DIR"
 
@@ -10,10 +12,8 @@ uv venv "$BUILD_DIR/.venv" --no-config --python 3.12
 
 source "$BUILD_DIR/.venv/bin/activate"
 
-uv pip install \
-    "Nuitka[onefile]" \
-    "libcst" \
-    "llama-cpp-python"
+uv pip install "Nuitka[onefile]"
+uv pip install -r cli_requirements.txt
 
 PYTHONPATH="packages/pydoctor_cli/src:packages/pydoctor_shared_cst/src" \
 python -m nuitka \

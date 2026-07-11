@@ -1,0 +1,163 @@
+name: Build and Release pydoctor-cli
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            backend: cpu
+            artifact_name: pydoctor-windows-amd64-cpu
+            binary_src: dist/cli.exe
+            binary_dst: pydoctor-windows-amd64-cpu.exe
+
+          - os: windows-latest
+            backend: cuda
+            artifact_name: pydoctor-windows-amd64-cuda
+            binary_src: dist/cli.exe
+            binary_dst: pydoctor-windows-amd64-cuda.exe
+
+          - os: ubuntu-latest
+            backend: cpu
+            artifact_name: pydoctor-linux-x86_64-cpu
+            binary_src: dist/cli.bin
+            binary_dst: pydoctor-linux-x86_64-cpu
+
+          - os: ubuntu-latest
+            backend: cuda
+            artifact_name: pydoctor-linux-x86_64-cuda
+            binary_src: dist/cli.bin
+            binary_dst: pydoctor-linux-x86_64-cuda
+
+          - os: macos-latest
+            backend: metal
+            artifact_name: pydoctor-macos-arm64
+            binary_src: dist/cli.bin
+            binary_dst: pydoctor-macos-arm64
+
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install and configure uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true 
+
+      - name: Install CUDA (Pouze pro CUDA buildy)
+        if: matrix.backend == 'cuda'
+        uses: jimmidyson/config-cuda-action@v2
+
+      - name: Export requirements.txt
+        run: uv export --package pydoctor-cli --output-file requirements.txt
+
+      - name: Create Virtual Environment
+        run: uv venv --no-config --python 3.12
+
+      - name: Set Build Environment Variables
+        shell: bash
+        run: |
+          if [ "${{ matrix.backend }}" = "cuda" ]; then
+            echo "CMAKE_ARGS=-GGML_CUDA=on" >> $GITHUB_ENV
+          elif [ "${{ matrix.backend }}" = "metal" ]; then
+            echo "CMAKE_ARGS=-GGML_METAL=on" >> $GITHUB_ENV
+          else
+            echo "CMAKE_ARGS=-GGML_CUDA=off -GGML_METAL=off" >> $GITHUB_ENV
+          fi
+
+      - name: Install Dependencies
+        run: |
+          uv pip install "Nuitka[onefile]"
+          uv pip install -r requirements.txt
+
+      - name: Run Nuitka compilation
+        shell: bash
+        run: |
+          export PYTHONPATH="packages/pydoctor_cli/src:packages/pydoctor_shared_cst/src"
+
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            PYTHON_EXE=".venv/Scripts/python.exe"
+          else
+            PYTHON_EXE=".venv/bin/python"
+          fi
+
+          if [ "${{ matrix.backend }}" = "cuda" ]; then
+            if [ "${{ matrix.os }}" = "windows-latest" ]; then
+              $PYTHON_EXE -m nuitka \
+                  --standalone \
+                  --onefile \
+                  --include-data-files="${CUDA_PATH}/bin/cudart64_*.dll=." \
+                  --include-data-files="${CUDA_PATH}/bin/cublas64_*.dll=." \
+                  --include-data-files="${CUDA_PATH}/bin/cublasLt64_*.dll=." \
+                  --enable-plugin=anti-bloat \
+                  --assume-yes-for-downloads \
+                  --output-dir=dist \
+                  packages/pydoctor_cli/src/pydoctor_cli/cli.py
+              else 
+                $PYTHON_EXE -m nuitka \
+                  --standalone \
+                  --onefile \
+                  --include-data-files="/usr/local/cuda/lib64/libcudart.so*=." \
+                  --include-data-files="/usr/local/cuda/lib64/libcublas.so*=." \
+                  --include-data-files="/usr/local/cuda/lib64/libcublasLt.so*=." \
+                  --enable-plugin=anti-bloat \
+                  --assume-yes-for-downloads \
+                  --output-dir=dist \
+                  packages/pydoctor_cli/src/pydoctor_cli/cli.py
+              fi
+          else
+            $PYTHON_EXE -m nuitka \
+                --standalone \
+                --onefile \
+                --enable-plugin=anti-bloat \
+                --assume-yes-for-downloads \
+                --output-dir=dist \
+                packages/pydoctor_cli/src/pydoctor_cli/cli.py
+          fi
+
+
+      - name: Rename binary for release
+        shell: bash
+        run: mv ${{ matrix.binary_src }} ${{ matrix.binary_dst }}
+
+      - name: Upload temporary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.binary_dst }}
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

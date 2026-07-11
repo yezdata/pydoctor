@@ -4,10 +4,10 @@ import os
 import sys
 from pathlib import Path
 
-from pydoctor_cli.file_processing import get_files_to_process, process_single_file
-from pydoctor_cli.model_cache_utils import get_model_path
-from pydoctor_cli.logging_utils import setup_logging
-from pydoctor_cli.argparse_utils import get_argparser
+from pydoctor_cli.utils.file_processing import get_files_to_process, process_single_file
+from pydoctor_cli.utils.model_caching import get_model_path
+from pydoctor_cli.utils.logging_setup import setup_logging
+from pydoctor_cli.utils.args_parser import get_argparser
 
 
 DEFAULT_IGNORE = {
