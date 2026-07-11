@@ -98,9 +98,8 @@ jobs:
               python -m nuitka \
                   --standalone \
                   --onefile \
-                  --include-data-files="$SITE_PACKAGES/nvidia/cuda_runtime/bin/cudart64_*.dll=\\" \
-                  --include-data-files="$SITE_PACKAGES/nvidia/cublas/bin/cublas64_*.dll=\\" \
-                  --include-data-files="$SITE_PACKAGES/nvidia/cublas/bin/cublasLt64_*.dll=\\" \
+                  --include-data-files="$SITE_PACKAGES/nvidia/cuda_runtime/bin/=." \
+                  --include-data-files="$SITE_PACKAGES/nvidia/cublas/bin/=." \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
                   --output-dir=dist \
@@ -109,9 +108,8 @@ jobs:
                 python -m nuitka \
                   --standalone \
                   --onefile \
-                  --include-data-files="$SITE_PACKAGES/nvidia/cuda_runtime/lib/libcudart.so*=." \
-                  --include-data-files="$SITE_PACKAGES/nvidia/cublas/lib/libcublas.so*=." \
-                  --include-data-files="$SITE_PACKAGES/nvidia/cublas/lib/libcublasLt.so*=." \
+                  --include-data-files="$SITE_PACKAGES/nvidia/cuda_runtime/lib/=." \
+                  --include-data-files="$SITE_PACKAGES/nvidia/cublas/lib/=." \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
                   --output-dir=dist \
