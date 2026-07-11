@@ -62,40 +62,36 @@ jobs:
           enable-cache: true 
 
       - name: Export requirements.txt
-        run: uv export --package pydoctor-cli --output-file requirements.txt
+        run: uv export --package pydoctor-cli --no-hashes --no-editable --output-file requirements.txt
 
       - name: Install Dependencies
         shell: bash
         run: |
+          uv pip install --system "Nuitka[onefile]"
+
           if [ "${{ matrix.backend }}" = "cuda" ]; then
             uv pip install --system nvidia-cuda-runtime-cu12 nvidia-cublas-cu12
-            export CMAKE_ARGS="-DGGML_CUDA=on"
+            uv pip install --system -r requirements.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
+
           elif [ "${{ matrix.backend }}" = "metal" ]; then
-            export CMAKE_ARGS="-DGGML_METAL=on"
+            uv pip install --system -r requirements.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/metal
+
           else
-            export CMAKE_ARGS=""
+            uv pip install --system -r requirements.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
           fi
 
-          uv pip install --system "Nuitka[onefile]"
-          uv pip install --system -r requirements.txt
+          uv pip install --system --no-deps ./packages/pydoctor_shared_cst
+          uv pip install --system --no-deps ./packages/pydoctor_cli
 
       - name: Run Nuitka compilation
         shell: bash
         run: |
-          export PYTHONPATH="packages/pydoctor_cli/src:packages/pydoctor_shared_cst/src"
-
-          SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
+          SITE_PACKAGES=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
           echo "Site packages path: $SITE_PACKAGES"
-
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            PYTHON_EXE=".venv/Scripts/python.exe"
-          else
-            PYTHON_EXE=".venv/bin/python"
-          fi
 
           if [ "${{ matrix.backend }}" = "cuda" ]; then
             if [ "${{ matrix.os }}" = "windows-latest" ]; then
-              $PYTHON_EXE -m nuitka \
+              python -m nuitka \
                   --standalone \
                   --onefile \
                   --include-data-files="$SITE_PACKAGES/nvidia/cuda_runtime/bin/cudart64_*.dll=." \
@@ -104,9 +100,9 @@ jobs:
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
                   --output-dir=dist \
-                  packages/pydoctor_cli/src/pydoctor_cli/cli.py
+                  -m pydoctor_cli.cli
               else 
-                $PYTHON_EXE -m nuitka \
+                python -m nuitka \
                   --standalone \
                   --onefile \
                   --include-data-files="$SITE_PACKAGES/nvidia/cuda_runtime/lib/libcudart.so*=." \
@@ -115,16 +111,16 @@ jobs:
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
                   --output-dir=dist \
-                  packages/pydoctor_cli/src/pydoctor_cli/cli.py
+                  -m pydoctor_cli.cli
               fi
           else
-            $PYTHON_EXE -m nuitka \
+            python -m nuitka \
                 --standalone \
                 --onefile \
                 --enable-plugin=anti-bloat \
                 --assume-yes-for-downloads \
                 --output-dir=dist \
-                packages/pydoctor_cli/src/pydoctor_cli/cli.py
+                -m pydoctor_cli.cli
           fi
 
 
