@@ -75,11 +75,11 @@ jobs:
         shell: bash
         run: |
           if [ "${{ matrix.backend }}" = "cuda" ]; then
-            echo "CMAKE_ARGS=-GGML_CUDA=on" >> $GITHUB_ENV
+            echo "CMAKE_ARGS=-DGML_CUDA=on" >> $GITHUB_ENV
           elif [ "${{ matrix.backend }}" = "metal" ]; then
-            echo "CMAKE_ARGS=-GGML_METAL=on" >> $GITHUB_ENV
+            echo "CMAKE_ARGS=-DGML_METAL=on" >> $GITHUB_ENV
           else
-            echo "CMAKE_ARGS=-GGML_CUDA=off -GGML_METAL=off" >> $GITHUB_ENV
+            echo "CMAKE_ARGS=-DGML_CUDA=off -DGML_METAL=off" >> $GITHUB_ENV
           fi
 
       - name: Install Dependencies
