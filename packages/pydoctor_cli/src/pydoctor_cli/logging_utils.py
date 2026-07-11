@@ -72,6 +72,7 @@ class ColorFormatter(logging.Formatter):
     RED = "\x1b[31;20m"
     BOLD_RED = "\x1b[31;1m"
     RESET = "\x1b[0m"
+    WHITE = "\x1b[37;20m"
 
     DIFF_ADDED = "\x1b[42;30m"
     DIFF_REMOVED = "\x1b[41;37m"
@@ -83,7 +84,7 @@ class ColorFormatter(logging.Formatter):
 
     FORMATS = {
         logging.DEBUG: GREY + BASE_FORMAT + RESET,
-        logging.INFO: GREY + INFO_FORMAT + RESET,
+        logging.INFO: WHITE + INFO_FORMAT + RESET,
         SUCCESS_LEVEL_NUM: BRIGHT_GREEN + SUCCESS_FORMAT + RESET,
         logging.WARNING: YELLOW + BASE_FORMAT + RESET,
         logging.ERROR: RED + BASE_FORMAT + RESET,

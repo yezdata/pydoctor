@@ -14,8 +14,7 @@ from pydoctor_cli.inference import generate_docstring
 
 
 def load_gitignore(target_path: Path) -> pathspec.PathSpec:
-    root_dir = target_path.parent if target_path.is_file() else target_path
-    gitignore_path = root_dir / ".gitignore"
+    gitignore_path = target_path / ".gitignore"
     if gitignore_path.is_file():
         try:
             with open(gitignore_path, "r", encoding="utf-8") as f:
@@ -26,31 +25,23 @@ def load_gitignore(target_path: Path) -> pathspec.PathSpec:
 
 
 def get_files_to_process(target_path: Path, default_ignore: set) -> list[Path]:
-    spec = load_gitignore(target_path)
-
-    root_dir = target_path.parent if target_path.is_file() else target_path
-
     if target_path.is_file():
         if target_path.suffix != ".py":
             logging.error(f"File {target_path} is not a Python file.")
             return []
-        try:
-            rel_path = target_path.relative_to(root_dir)
-            if spec.match_file(str(rel_path)):
-                return []
-        except ValueError:
-            pass
         return [target_path]
+
+    spec = load_gitignore(target_path)
 
     files_to_process = []
     for root, dirs, files in os.walk(target_path):
         dirs[:] = [d for d in dirs if d not in default_ignore]
         for file in files:
-            if not file.endswith(".py"):
+            if file in default_ignore or not file.endswith(".py"):
                 continue
             file_path = Path(root) / file
             try:
-                rel_path = file_path.relative_to(root_dir)
+                rel_path = file_path.relative_to(target_path)
                 if not spec.match_file(str(rel_path)):
                     files_to_process.append(file_path)
             except ValueError:
