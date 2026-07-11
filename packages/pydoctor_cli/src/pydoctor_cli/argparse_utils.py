@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 def get_argparser() -> ArgumentParser:
     parser = ArgumentParser(
         description="Update docstrings in Python files. "
-        "By default, it only adds new docstrings where they are missing."
+        "By default, it only adds new docstrings where they are missing. "
         "Use '# pydoctor: ignore' comment to skip a function or class from processing."
     )
     parser.add_argument(
@@ -20,7 +20,7 @@ def get_argparser() -> ArgumentParser:
         action="store_const",
         dest="extraction_option",
         const="with_docstring",
-        help="Only replace existing docstrings.",
+        help="Replace only existing docstrings.",
     )
 
     group.add_argument(
@@ -28,7 +28,7 @@ def get_argparser() -> ArgumentParser:
         action="store_const",
         dest="extraction_option",
         const="all",
-        help="Process all functions / classes.",
+        help="Process all code blocks.",
     )
 
     parser.set_defaults(extraction_option="without_docstring")

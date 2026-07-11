@@ -112,6 +112,9 @@ class ColorFormatter(logging.Formatter):
 def setup_logging(log_level: int) -> None:
     add_custom_levels()
 
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
     stream_handler = logging.StreamHandler(sys.stderr)
     stream_handler.setFormatter(ColorFormatter())
 

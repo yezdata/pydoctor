@@ -6,7 +6,7 @@ mkdir -p "$OUTPUT_DIR"
 BUILD_DIR=$(mktemp -d)
 trap 'rm -rf "$BUILD_DIR"' EXIT
 
-uv venv "$BUILD_DIR/.venv" --isolated --python 3.12
+uv venv "$BUILD_DIR/.venv" --no-config --python 3.12
 
 source "$BUILD_DIR/.venv/bin/activate"
 
