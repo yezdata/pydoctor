@@ -61,9 +61,9 @@ jobs:
         with:
           enable-cache: true 
 
-      - name: Install CUDA (Pouze pro CUDA buildy)
+      - name: Install CUDA
         if: matrix.backend == 'cuda'
-        uses: jimmidyson/config-cuda-action@v2
+        uses: Jimver/cuda-toolkit@v0.2.35
 
       - name: Export requirements.txt
         run: uv export --package pydoctor-cli --output-file requirements.txt
