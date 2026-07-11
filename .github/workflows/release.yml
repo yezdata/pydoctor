@@ -61,34 +61,31 @@ jobs:
         with:
           enable-cache: true 
 
-      - name: Install CUDA
-        if: matrix.backend == 'cuda'
-        uses: Jimver/cuda-toolkit@v0.2.35
-
       - name: Export requirements.txt
         run: uv export --package pydoctor-cli --output-file requirements.txt
 
-      - name: Create Virtual Environment
-        run: uv venv --no-config --python 3.12
-
-      - name: Set Build Environment Variables
+      - name: Install Dependencies
         shell: bash
         run: |
           if [ "${{ matrix.backend }}" = "cuda" ]; then
-            echo "CMAKE_ARGS=-DGGML_CUDA=on" >> $GITHUB_ENV
+            uv pip install --system nvidia-cuda-runtime-cu12 nvidia-cublas-cu12
+            export CMAKE_ARGS="-DGGML_CUDA=on"
           elif [ "${{ matrix.backend }}" = "metal" ]; then
-            echo "CMAKE_ARGS=-DGGML_METAL=on" >> $GITHUB_ENV
+            export CMAKE_ARGS="-DGGML_METAL=on"
+          else
+            export CMAKE_ARGS=""
           fi
 
-      - name: Install Dependencies
-        run: |
-          uv pip install "Nuitka[onefile]"
-          uv pip install -r requirements.txt
+          uv pip install --system "Nuitka[onefile]"
+          uv pip install --system -r requirements.txt
 
       - name: Run Nuitka compilation
         shell: bash
         run: |
           export PYTHONPATH="packages/pydoctor_cli/src:packages/pydoctor_shared_cst/src"
+
+          SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
+          echo "Site packages path: $SITE_PACKAGES"
 
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             PYTHON_EXE=".venv/Scripts/python.exe"
@@ -101,9 +98,9 @@ jobs:
               $PYTHON_EXE -m nuitka \
                   --standalone \
                   --onefile \
-                  --include-data-files="${CUDA_PATH}/bin/cudart64_*.dll=." \
-                  --include-data-files="${CUDA_PATH}/bin/cublas64_*.dll=." \
-                  --include-data-files="${CUDA_PATH}/bin/cublasLt64_*.dll=." \
+                  --include-data-files="$SITE_PACKAGES/nvidia/cuda_runtime/bin/cudart64_*.dll=." \
+                  --include-data-files="$SITE_PACKAGES/nvidia/cublas/bin/cublas64_*.dll=." \
+                  --include-data-files="$SITE_PACKAGES/nvidia/cublas/bin/cublasLt64_*.dll=." \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
                   --output-dir=dist \
@@ -112,9 +109,9 @@ jobs:
                 $PYTHON_EXE -m nuitka \
                   --standalone \
                   --onefile \
-                  --include-data-files="/usr/local/cuda/lib64/libcudart.so*=." \
-                  --include-data-files="/usr/local/cuda/lib64/libcublas.so*=." \
-                  --include-data-files="/usr/local/cuda/lib64/libcublasLt.so*=." \
+                  --include-data-files="$SITE_PACKAGES/nvidia/cuda_runtime/lib/libcudart.so*=." \
+                  --include-data-files="$SITE_PACKAGES/nvidia/cublas/lib/libcublas.so*=." \
+                  --include-data-files="$SITE_PACKAGES/nvidia/cublas/lib/libcublasLt.so*=." \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
                   --output-dir=dist \
