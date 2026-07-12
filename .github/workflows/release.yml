@@ -110,8 +110,9 @@ jobs:
               python -m nuitka \
                   --standalone \
                   --onefile \
-                  --include-data-dir="$SITE_PACKAGES/nvidia/cuda_runtime/bin=." \
-                  --include-data-dir="$SITE_PACKAGES/nvidia/cublas/bin=." \
+                  --jobs=${{ steps.cpu-cores.outputs.count }} \
+                  --include-data-dir="$SITE_PACKAGES/nvidia/cuda_runtime=nvidia/cuda_runtime" \
+                  --include-data-dir="$SITE_PACKAGES/nvidia/cublas=nvidia/cublas" \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
                   --mingw64 \
@@ -121,6 +122,7 @@ jobs:
                 python -m nuitka \
                   --standalone \
                   --onefile \
+                  --jobs=${{ steps.cpu-cores.outputs.count }} \
                   --include-data-dir="$SITE_PACKAGES/nvidia/cuda_runtime/lib=." \
                   --include-data-dir="$SITE_PACKAGES/nvidia/cublas/lib=." \
                   --enable-plugin=anti-bloat \
@@ -133,6 +135,7 @@ jobs:
               python -m nuitka \
                   --standalone \
                   --onefile \
+                  --jobs=${{ steps.cpu-cores.outputs.count }} \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
                   --mingw64 \
@@ -142,6 +145,7 @@ jobs:
               python -m nuitka \
                   --standalone \
                   --onefile \
+                  --jobs=${{ steps.cpu-cores.outputs.count }} \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
                   --output-dir=dist \
