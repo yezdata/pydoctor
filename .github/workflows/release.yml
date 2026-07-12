@@ -27,7 +27,7 @@ jobs:
             backend: cuda
             artifact_name: pydoctor-windows-amd64-cuda
             binary_src: dist/cli.exe
-            binary_dst: pydoctor-windows-amd64-cuda.exe
+            binary_dst: pydoctor-windows-amd64-nvidia.exe
 
           - os: ubuntu-latest
             backend: cpu
@@ -39,7 +39,7 @@ jobs:
             backend: cuda
             artifact_name: pydoctor-linux-x86_64-cuda
             binary_src: dist/cli.bin
-            binary_dst: pydoctor-linux-x86_64-cuda
+            binary_dst: pydoctor-linux-x86_64-nvidia
 
           - os: macos-latest
             backend: metal
@@ -110,19 +110,17 @@ jobs:
               python -m nuitka \
                   --standalone \
                   --onefile \
-                  --jobs=${{ steps.cpu-cores.outputs.count }} \
                   --include-data-dir="$SITE_PACKAGES/nvidia/cuda_runtime=nvidia/cuda_runtime" \
                   --include-data-dir="$SITE_PACKAGES/nvidia/cublas=nvidia/cublas" \
+                  --no-optimization-flags=module.libcst.matchers \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
-                  --mingw64 \
                   --output-dir=dist \
                   $CLI_SCRIPT
               else 
                 python -m nuitka \
                   --standalone \
                   --onefile \
-                  --jobs=${{ steps.cpu-cores.outputs.count }} \
                   --include-data-dir="$SITE_PACKAGES/nvidia/cuda_runtime/lib=." \
                   --include-data-dir="$SITE_PACKAGES/nvidia/cublas/lib=." \
                   --enable-plugin=anti-bloat \
@@ -135,17 +133,15 @@ jobs:
               python -m nuitka \
                   --standalone \
                   --onefile \
-                  --jobs=${{ steps.cpu-cores.outputs.count }} \
+                  --no-optimization-flags=module.libcst.matchers \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
-                  --mingw64 \
                   --output-dir=dist \
                   $CLI_SCRIPT
             else
               python -m nuitka \
                   --standalone \
                   --onefile \
-                  --jobs=${{ steps.cpu-cores.outputs.count }} \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
                   --output-dir=dist \
