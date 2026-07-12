@@ -112,7 +112,7 @@ jobs:
                   --onefile \
                   --include-data-dir="$SITE_PACKAGES/nvidia/cuda_runtime=nvidia/cuda_runtime" \
                   --include-data-dir="$SITE_PACKAGES/nvidia/cublas=nvidia/cublas" \
-                  --no-optimization-flags=module.libcst.matchers \
+                  --low-memory \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
                   --output-dir=dist \
@@ -133,7 +133,7 @@ jobs:
               python -m nuitka \
                   --standalone \
                   --onefile \
-                  --no-optimization-flags=module.libcst.matchers \
+                  --low-memory \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
                   --output-dir=dist \
