@@ -114,6 +114,7 @@ jobs:
                   --include-data-dir="$SITE_PACKAGES/nvidia/cublas=nvidia/cublas" \
                   --lto=no \
                   --low-memory \
+                  --mingw64 \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
                   --output-dir=dist \
@@ -136,6 +137,7 @@ jobs:
                   --onefile \
                   --lto=no \
                   --low-memory \
+                  --mingw64 \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
                   --output-dir=dist \
