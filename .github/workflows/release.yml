@@ -85,6 +85,18 @@ jobs:
           uv pip install --system --no-deps ./packages/pydoctor_shared_cst
           uv pip install --system --no-deps ./packages/pydoctor_cli
 
+      - name: Setup Nuitka Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/Nuitka
+            ~/.ccache
+            ~/AppData/Local/Nuitka/Nuitka
+            ~/AppData/Local/Nuitka/Nuitka/ccache
+          key: nuitka-${{ runner.os }}-${{ matrix.backend }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            nuitka-${{ runner.os }}-${{ matrix.backend }}-
+
       - name: Run Nuitka compilation
         shell: bash
         run: |
@@ -102,6 +114,7 @@ jobs:
                   --include-data-dir="$SITE_PACKAGES/nvidia/cublas/bin=." \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
+                  --mingw64 \
                   --output-dir=dist \
                   $CLI_SCRIPT
               else 
@@ -120,9 +133,9 @@ jobs:
               python -m nuitka \
                   --standalone \
                   --onefile \
-                  --msvc-target=amd64 \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
+                  --mingw64 \
                   --output-dir=dist \
                   $CLI_SCRIPT
             else
