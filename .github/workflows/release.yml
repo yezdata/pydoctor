@@ -106,14 +106,16 @@ jobs:
 
       - name: Run Nuitka compilation
         shell: bash
-        # env:
-        #   # FOR MINGW64 
-        #   CCFLAGS: "-O1"
         run: |
           SITE_PACKAGES=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
           echo "Site packages path: $SITE_PACKAGES"
 
           CLI_SCRIPT="packages/pydoctor_cli/src/pydoctor_cli/cli.py"
+
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            echo "CCFLAGS=-O2" >> $GITHUB_ENV
+            export CCFLAGS="-O2"
+          fi
 
           if [ "${{ matrix.backend }}" = "cuda" ]; then
             if [ "${{ matrix.os }}" = "windows-latest" ]; then
