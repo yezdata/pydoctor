@@ -113,8 +113,8 @@ jobs:
           CLI_SCRIPT="packages/pydoctor_cli/src/pydoctor_cli/cli.py"
 
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            echo "CCFLAGS=-O2" >> $GITHUB_ENV
-            export CCFLAGS="-O2"
+            echo "CCFLAGS=-O1" >> $GITHUB_ENV
+            export CCFLAGS="-O1"
           fi
 
           if [ "${{ matrix.backend }}" = "cuda" ]; then
