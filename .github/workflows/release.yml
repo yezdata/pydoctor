@@ -52,19 +52,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Increase Pagefile (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: powershell
-        run: |
-          $pagefile = Get-WmiObject Win32_PageFileSetting
-          if ($pagefile) {
-              $pagefile.InitialSize = 8192
-              $pagefile.MaximumSize = 16384
-              $pagefile.Put()
-          } else {
-              Set-CimInstance -Query "Select * from Win32_ComputerSystem" -Property @{AutomaticManagedPagefile=$False}
-              New-CimInstance -ClassName Win32_PageFileSetting -Property @{Name="C:\pagefile.sys"; InitialSize=8192; MaximumSize=16384}
-          }
+      - name: Configure Pagefile
+        uses: al-cheb/configure-pagefile-action@v1.4
+        with:
+          minimum-size: 16GB
+          # maximum-size: 32GB
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -113,6 +105,9 @@ jobs:
 
       - name: Run Nuitka compilation
         shell: bash
+        env:
+          # FOR MINGW64 
+          CCFLAGS: "-O1"
         run: |
           SITE_PACKAGES=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
           echo "Site packages path: $SITE_PACKAGES"
@@ -127,6 +122,7 @@ jobs:
                   --include-data-dir="$SITE_PACKAGES/nvidia/cuda_runtime=nvidia/cuda_runtime" \
                   --include-data-dir="$SITE_PACKAGES/nvidia/cublas=nvidia/cublas" \
                   --lto=no \
+                  --mingw64 \
                   --jobs=1 \
                   --low-memory \
                   --enable-plugin=anti-bloat \
@@ -150,6 +146,7 @@ jobs:
                   --standalone \
                   --onefile \
                   --lto=no \
+                  --mingw64 \
                   --jobs=1 \
                   --low-memory \
                   --enable-plugin=anti-bloat \
