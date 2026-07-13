@@ -52,6 +52,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Increase Pagefile (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          $pagefile = Get-WmiObject Win32_PageFileSetting
+          if ($pagefile) {
+              $pagefile.InitialSize = 8192
+              $pagefile.MaximumSize = 16384
+              $pagefile.Put()
+          } else {
+              Set-CimInstance -Query "Select * from Win32_ComputerSystem" -Property @{AutomaticManagedPagefile=$False}
+              New-CimInstance -ClassName Win32_PageFileSetting -Property @{Name="C:\pagefile.sys"; InitialSize=8192; MaximumSize=16384}
+          }
+
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
@@ -113,8 +127,8 @@ jobs:
                   --include-data-dir="$SITE_PACKAGES/nvidia/cuda_runtime=nvidia/cuda_runtime" \
                   --include-data-dir="$SITE_PACKAGES/nvidia/cublas=nvidia/cublas" \
                   --lto=no \
+                  --jobs=1 \
                   --low-memory \
-                  --mingw64 \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
                   --output-dir=dist \
@@ -136,8 +150,8 @@ jobs:
                   --standalone \
                   --onefile \
                   --lto=no \
+                  --jobs=1 \
                   --low-memory \
-                  --mingw64 \
                   --enable-plugin=anti-bloat \
                   --assume-yes-for-downloads \
                   --output-dir=dist \
