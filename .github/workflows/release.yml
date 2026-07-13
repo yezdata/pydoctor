@@ -57,7 +57,7 @@ jobs:
         uses: al-cheb/configure-pagefile-action@v1.4
         with:
           minimum-size: 16GB
-          # maximum-size: 32GB
+          maximum-size: 32GB
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -106,9 +106,9 @@ jobs:
 
       - name: Run Nuitka compilation
         shell: bash
-        env:
-          # FOR MINGW64 
-          CCFLAGS: "-O1"
+        # env:
+        #   # FOR MINGW64 
+        #   CCFLAGS: "-O1"
         run: |
           SITE_PACKAGES=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
           echo "Site packages path: $SITE_PACKAGES"
