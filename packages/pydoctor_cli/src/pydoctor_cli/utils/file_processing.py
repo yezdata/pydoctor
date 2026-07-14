@@ -1,4 +1,3 @@
-import sys
 from pathlib import Path
 from typing import Literal
 import libcst as cst
@@ -7,6 +6,7 @@ from llama_cpp import Llama
 import pathspec
 import logging
 import os
+import queue
 
 from pydoctor_shared_cst.code_extractor import CodeExtractor
 from pydoctor_shared_cst.docstring_transformer import DocstringTransformer
@@ -87,90 +87,121 @@ def get_files_to_process(target_path: Path, default_ignore: set) -> list[Path]:
     return files_to_process
 
 
-def process_single_file(
-    file_path: Path,
-    llm: Llama,
+def parser_producer(
+    files_to_process: list[Path],
     extraction_option: Literal["with_docstring", "without_docstring", "all"],
-    is_dry_run: bool,
-) -> int:
-    tmp_file_path = file_path.with_suffix(file_path.suffix + ".tmp")
-
-    if tmp_file_path.exists():
+    task_queue: queue.Queue,
+) -> None:
+    """
+    Background thread
+    Continuously load and parse LibCST ASTs
+    Put results into a queue with backpressure
+    """
+    for file_path in files_to_process:
         try:
-            tmp_file_path.unlink()
-        except OSError:
-            logging.error(f"Could not remove stale tmp file: {tmp_file_path}")
-            return 0
+            logging.debug(f"Parsing source code: {file_path}")
 
-    try:
-        logging.debug(f"Parsing source code from: {file_path}")
+            source_code = file_path.read_text(encoding="utf-8")
 
-        source_code = file_path.read_text(encoding="utf-8")
+            cst_tree = cst.parse_module(source_code)
+            wrapper = MetadataWrapper(cst_tree)
 
-        cst_tree = cst.parse_module(source_code)
-        wrapper = MetadataWrapper(cst_tree)
+            extractor = CodeExtractor(extraction_options=extraction_option)
+            wrapper.visit(extractor)
 
-        extractor = CodeExtractor(extraction_options=extraction_option)
-        wrapper.visit(extractor)
-
-        if not extractor.extracted_blocks:
-            return 0
-
-        extracted_blocks_count = len(extractor.extracted_blocks)
-
-        logging.debug(
-            f"Extracted {extracted_blocks_count} code blocks from {file_path}"
-        )
-
-        new_docstrings = {}
-        for k, v in extractor.extracted_blocks.items():
-            node_name = v.pop("name", "unknown")
-
-            docstring = generate_docstring(llm, v).strip().replace('"""', "'''")
-            if not docstring:
-                logging.warning(
-                    f"Model did not successfully generate docstring for {file_path.name}::{node_name}"
-                )
+            if not extractor.extracted_blocks:
+                logging.debug(f"No target blocks extracted from: {file_path}")
                 continue
 
             logging.debug(
-                f"Generated docstring for {file_path.name}::{node_name}:\n{docstring}\n"
+                f"Extracted {len(extractor.extracted_blocks)} code blocks from {file_path}"
             )
 
-            new_docstrings[k] = {"docstring": docstring, "name": node_name}
+            task_queue.put((file_path, wrapper, extractor.extracted_blocks), block=True)
 
-        transformer = DocstringTransformer(new_docstrings=new_docstrings)
-        modified_tree = wrapper.visit(transformer)
+        except cst.ParserSyntaxError as e:
+            logging.error(f"Syntax error in file {file_path}: {e}")
+        except Exception:
+            logging.exception(f"Unexpected error when parsing {file_path}")
 
-        if is_dry_run:
-            for key, old_docstring in transformer.old_docstrings.items():
-                docstring_info = new_docstrings.get(key, "")
-                new_docstring = docstring_info.get("docstring", "")
-                node_name = docstring_info.get("name", "unknown")
-                target_identifier = f"{file_path.name}::{node_name}"
+    task_queue.put((None, None, None))
 
-                logging.diff(
-                    target_identifier,
-                    old_docstring,
-                    new_docstring,
-                )
-        else:
-            tmp_file_path.write_text(modified_tree.code, encoding="utf-8")
 
-            tmp_file_path.replace(file_path)
+def inference_consumer(
+    llm: Llama, is_dry_run: bool, task_queue: queue.Queue, result_counter: list[int]
+) -> None:
+    """
+    Running in main thread
+    Takes tasks from the queue, performs inference, and writes results to files
+    """
+    transformed_blocks_total = 0
 
-        return transformer.transformed_blocks
+    while True:
+        file_path, wrapper, extracted_blocks = task_queue.get(block=True)
 
-    except cst.ParserSyntaxError as e:
-        logging.error(f"Syntax error in file {file_path}: {e}")
-        return 0
-    except Exception:
-        logging.exception(f"Unexpected error processing file: {file_path}")
-        sys.exit(1)
+        # parser indicate finish
+        if file_path is None:
+            task_queue.task_done()
+            break
 
-    finally:
+        tmp_file_path = file_path.with_suffix(file_path.suffix + ".tmp")
         if tmp_file_path.exists():
             try:
                 tmp_file_path.unlink()
             except OSError:
                 logging.error(f"Could not remove stale tmp file: {tmp_file_path}")
+                task_queue.task_done()
+                continue
+
+        try:
+            new_docstrings = {}
+            for k, v in extracted_blocks.items():
+                node_name = v.pop("name", "unknown")
+
+                docstring = generate_docstring(llm, v).strip().replace('"""', "'''")
+
+                if not docstring:
+                    logging.warning(
+                        f"Model did not successfully generate docstring for {file_path.name}::{node_name}"
+                    )
+                    continue
+
+                logging.debug(
+                    f"Generated docstring for {file_path.name}::{node_name}:\n{docstring}\n"
+                )
+                new_docstrings[k] = {"docstring": docstring, "name": node_name}
+
+            transformer = DocstringTransformer(new_docstrings=new_docstrings)
+            modified_tree = wrapper.visit(transformer)
+
+            if is_dry_run:
+                for key, old_docstring in transformer.old_docstrings.items():
+                    docstring_info = new_docstrings.get(key, {})
+                    new_docstring = docstring_info.get("docstring", "")
+                    node_name = docstring_info.get("name", "unknown")
+                    target_identifier = f"{file_path.name}::{node_name}"
+
+                    logging.diff(
+                        target_identifier,
+                        old_docstring,
+                        new_docstring,
+                    )
+            else:
+                tmp_file_path.write_text(modified_tree.code, encoding="utf-8")
+                tmp_file_path.replace(file_path)
+
+            transformed_blocks_total += transformer.transformed_blocks
+
+        except Exception:
+            logging.exception(
+                f"Unexpected error processing file in consumer: {file_path}"
+            )
+            if tmp_file_path.exists():
+                try:
+                    tmp_file_path.unlink()
+                except OSError:
+                    logging.error(f"Could not remove stale tmp file: {tmp_file_path}")
+        finally:
+            task_queue.task_done()
+
+    result_counter[0] = transformed_blocks_total

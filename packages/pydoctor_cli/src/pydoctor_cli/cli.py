@@ -2,9 +2,15 @@ from llama_cpp import Llama
 import logging
 import os
 import sys
+import threading
+import queue
 from pathlib import Path
 
-from pydoctor_cli.utils.file_processing import get_files_to_process, process_single_file
+from pydoctor_cli.utils.file_processing import (
+    get_files_to_process,
+    parser_producer,
+    inference_consumer,
+)
 from pydoctor_cli.utils.model_caching import get_model_path
 from pydoctor_cli.utils.logging_setup import setup_logging
 from pydoctor_cli.utils.args_parser import get_argparser
@@ -62,16 +68,26 @@ def main() -> None:
     )
     logging.debug("pydoctor_model loaded successfully.")
 
-    transformed_blocks_total = 0
-    for file in files_to_process:
-        transformed_blocks = process_single_file(
-            file, llm, args.extraction_option, args.dry_run
-        )
-        transformed_blocks_total += transformed_blocks
+    task_queue = queue.Queue(maxsize=20)
+    result_counter = [0]
+
+    producer_thread = threading.Thread(
+        target=parser_producer,
+        args=(files_to_process, args.extraction_option, task_queue),
+        daemon=True,
+    )
+    producer_thread.start()
+
+    inference_consumer(llm, args.dry_run, task_queue, result_counter)
+
+    producer_thread.join()
+
+    transformed_blocks_total = result_counter[0]
 
     if transformed_blocks_total == 0:
         logging.info("No docstrings to update in any code blocks.")
         return
+
     if not args.dry_run:
         transformation_map = {
             "with_docstring": "Replaced",
