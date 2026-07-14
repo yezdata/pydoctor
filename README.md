@@ -127,6 +127,7 @@ def _internal_helper(x): # pydoctor: ignore
 ```
 
 
+**Ignore only part of code block:**
 ```python
 class PublicAPI:
     # pydoctor: ignore
@@ -147,7 +148,7 @@ scripts/
 
 ## Model
 
-PyDoctor ships with a custom fine-tuned **[SmolLM2-1.7B-Instruct](https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct)** (HuggingFaceTB) quantised to **Q8_0 GGUF** and hosted at [`yezdata/SmolLM2-1.7B-Instruct-DocstringGenerator`](https://huggingface.co/yezdata/SmolLM2-1.7B-Instruct-DocstringGenerator) on HuggingFace. The model uses the **ChatML** prompt format (`<|im_start|>` / `<|im_end|>`) and is trained + instructed to output only the raw docstring text.
+PyDoctor ships with a custom fine-tuned **[SmolLM2-1.7B-Instruct](https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct)** (HuggingFaceTB) quantised to **Q8_0 GGUF** and hosted at [`yezdata/SmolLM2-1.7B-Instruct-DocstringGenerator`](https://huggingface.co/yezdata/SmolLM2-1.7B-Instruct-DocstringGenerator). The model uses the **ChatML** prompt format (`<|im_start|>` / `<|im_end|>`) and is trained + instructed to output only the raw docstring text.
 
 ### Fine-tuning pipeline
 
