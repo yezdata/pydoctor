@@ -32,8 +32,10 @@ class DocstringTransformer(cst.CSTTransformer):
             old_docstring if old_docstring is not None else ""
         )
 
+        wrapped_docstring = f'"""{docstring}"""'
+
         docstring_node = cst.SimpleStatementLine(
-            body=[cst.Expr(value=cst.SimpleString(value=docstring))]
+            body=[cst.Expr(value=cst.SimpleString(value=wrapped_docstring))]
         )
         new_body = [docstring_node] + list(node.body.body)
         return node.with_changes(body=node.body.with_changes(body=new_body))

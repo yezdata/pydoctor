@@ -137,7 +137,7 @@ def process_single_file(
                 f"Generated docstring for {file_path.name}::{node_name}:\n{docstring}\n"
             )
 
-            new_docstrings[k] = {"docstring": f'"""{docstring}"""', "name": node_name}
+            new_docstrings[k] = {"docstring": docstring, "name": node_name}
 
         transformer = DocstringTransformer(new_docstrings=new_docstrings)
         modified_tree = wrapper.visit(transformer)

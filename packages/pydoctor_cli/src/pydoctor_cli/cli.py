@@ -40,7 +40,6 @@ def main() -> None:
         logging.info("No Python files found to process.")
         return
 
-    # TODO: set provider (GPU / CPU)
     REPO_ID = "yezdata/pydoctor_model"
     MODEL_FILE = "smollm2_1_7b_instruct_merged-q8_0.gguf"
 
@@ -70,31 +69,32 @@ def main() -> None:
         )
         transformed_blocks_total += transformed_blocks
 
-    transformation_map = {
-        "with_docstring": "Replaced",
-        "without_docstring": "Added new",
-        "all": "Processed",
-    }
-    action = transformation_map.get(args.extraction_option, "Updated")
-
     if transformed_blocks_total == 0:
         logging.info("No docstrings to update in any code blocks.")
         return
-    if len(files_to_process) > 1:
-        final_msg = (
-            f"{action} docstrings in {transformed_blocks_total} code blocks "
-            f"across {len(files_to_process)} source files."
-        )
-    else:
-        single_file = files_to_process[0]
-        try:
-            relative_path = single_file.relative_to(Path.cwd())
-        except ValueError:
-            # use absolute path if the file is not in the cwd
-            relative_path = single_file
-        final_msg = f"{action} docstrings in {transformed_blocks_total} code blocks in {relative_path}."
+    if not args.dry_run:
+        transformation_map = {
+            "with_docstring": "Replaced",
+            "without_docstring": "Added new",
+            "all": "Processed",
+        }
+        action = transformation_map.get(args.extraction_option, "Updated")
 
-    logging.success(final_msg)
+        if len(files_to_process) > 1:
+            final_msg = (
+                f"{action} docstrings in {transformed_blocks_total} code blocks "
+                f"across {len(files_to_process)} source files."
+            )
+        else:
+            single_file = files_to_process[0]
+            try:
+                relative_path = single_file.relative_to(Path.cwd())
+            except ValueError:
+                # use absolute path if the file is not in the cwd
+                relative_path = single_file
+            final_msg = f"{action} docstrings in {transformed_blocks_total} code blocks in {relative_path}."
+
+        logging.success(final_msg)
 
 
 if __name__ == "__main__":
