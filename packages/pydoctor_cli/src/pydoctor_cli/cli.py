@@ -46,7 +46,7 @@ def main() -> None:
         logging.info("No Python files found to process.")
         return
 
-    REPO_ID = "yezdata/pydoctor_model"
+    REPO_ID = "yezdata/SmolLM2-1.7B-Instruct-DocstringGenerator"
     MODEL_FILE = "smollm2_1_7b_instruct_merged-q8_0.gguf"
 
     try:
