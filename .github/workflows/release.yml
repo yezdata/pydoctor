@@ -19,27 +19,15 @@ jobs:
         include:
           - os: windows-latest
             backend: cpu
-            artifact_name: pydoctor-windows-amd64-cpu
+            artifact_name: pydoctor-windows-amd64
             binary_src: dist/cli.exe
-            binary_dst: pydoctor-windows-amd64-cpu.exe
-
-          - os: windows-latest
-            backend: cuda
-            artifact_name: pydoctor-windows-amd64-cuda
-            binary_src: dist/cli.exe
-            binary_dst: pydoctor-windows-amd64-nvidia.exe
+            binary_dst: pydoctor-windows-amd64.exe
 
           - os: ubuntu-latest
             backend: cpu
-            artifact_name: pydoctor-linux-x86_64-cpu
+            artifact_name: pydoctor-linux-x86_64
             binary_src: dist/cli.bin
-            binary_dst: pydoctor-linux-x86_64-cpu
-
-          - os: ubuntu-latest
-            backend: cuda
-            artifact_name: pydoctor-linux-x86_64-cuda
-            binary_src: dist/cli.bin
-            binary_dst: pydoctor-linux-x86_64-nvidia
+            binary_dst: pydoctor-linux-x86_64
 
           - os: macos-latest
             backend: metal
@@ -77,13 +65,8 @@ jobs:
         run: |
           uv pip install --system "Nuitka[onefile]"
 
-          if [ "${{ matrix.backend }}" = "cuda" ]; then
-            uv pip install --system nvidia-cuda-runtime-cu12 nvidia-cublas-cu12
-            uv pip install --system -r requirements.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
-
-          elif [ "${{ matrix.backend }}" = "metal" ]; then
-            export CMAKE_ARGS="-DGGML_METAL=on"
-            uv pip install --system -r requirements.txt
+          if [ "${{ matrix.backend }}" = "metal" ]; then
+            uv pip install --system -r requirements.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/metal
 
           else
             uv pip install --system -r requirements.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
@@ -97,19 +80,17 @@ jobs:
         with:
           path: |
             ~/.cache/Nuitka
+            ~/Library/Caches/Nuitka
             ~/.ccache
             ~/AppData/Local/Nuitka/Nuitka
             ~/AppData/Local/Nuitka/Nuitka/ccache
+
           key: nuitka-${{ runner.os }}-${{ matrix.backend }}-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            nuitka-${{ runner.os }}-${{ matrix.backend }}-
+          restore-keys: nuitka-${{ runner.os }}-${{ matrix.backend }}-
 
       - name: Run Nuitka compilation
         shell: bash
         run: |
-          SITE_PACKAGES=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
-          echo "Site packages path: $SITE_PACKAGES"
-
           CLI_SCRIPT="packages/pydoctor_cli/src/pydoctor_cli/cli.py"
 
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
@@ -117,54 +98,26 @@ jobs:
             export CCFLAGS="-O1"
           fi
 
-          if [ "${{ matrix.backend }}" = "cuda" ]; then
-            if [ "${{ matrix.os }}" = "windows-latest" ]; then
-              python -m nuitka \
-                  --standalone \
-                  --onefile \
-                  --include-data-dir="$SITE_PACKAGES/nvidia/cuda_runtime=nvidia/cuda_runtime" \
-                  --include-data-dir="$SITE_PACKAGES/nvidia/cublas=nvidia/cublas" \
-                  --lto=no \
-                  --mingw64 \
-                  --jobs=1 \
-                  --low-memory \
-                  --enable-plugin=anti-bloat \
-                  --assume-yes-for-downloads \
-                  --output-dir=dist \
-                  $CLI_SCRIPT
-              else 
-                python -m nuitka \
-                  --standalone \
-                  --onefile \
-                  --include-data-dir="$SITE_PACKAGES/nvidia/cuda_runtime/lib=." \
-                  --include-data-dir="$SITE_PACKAGES/nvidia/cublas/lib=." \
-                  --enable-plugin=anti-bloat \
-                  --assume-yes-for-downloads \
-                  --output-dir=dist \
-                  $CLI_SCRIPT
-              fi
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            python -m nuitka \
+                --standalone \
+                --onefile \
+                --lto=no \
+                --mingw64 \
+                --jobs=1 \
+                --low-memory \
+                --enable-plugin=anti-bloat \
+                --assume-yes-for-downloads \
+                --output-dir=dist \
+                $CLI_SCRIPT
           else
-            if [ "${{ matrix.os }}" = "windows-latest" ]; then
-              python -m nuitka \
-                  --standalone \
-                  --onefile \
-                  --lto=no \
-                  --mingw64 \
-                  --jobs=1 \
-                  --low-memory \
-                  --enable-plugin=anti-bloat \
-                  --assume-yes-for-downloads \
-                  --output-dir=dist \
-                  $CLI_SCRIPT
-            else
-              python -m nuitka \
-                  --standalone \
-                  --onefile \
-                  --enable-plugin=anti-bloat \
-                  --assume-yes-for-downloads \
-                  --output-dir=dist \
-                  $CLI_SCRIPT
-            fi
+            python -m nuitka \
+                --standalone \
+                --onefile \
+                --enable-plugin=anti-bloat \
+                --assume-yes-for-downloads \
+                --output-dir=dist \
+                $CLI_SCRIPT
           fi
 
 
