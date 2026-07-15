@@ -1,6 +1,5 @@
 import libcst as cst
 import re
-from libcst import matchers as m
 from libcst.metadata import PositionProvider
 from collections import deque
 from typing import Literal
@@ -9,7 +8,8 @@ from typing import Literal
 def is_property_or_special(node: cst.FunctionDef) -> bool:
     is_special = node.name.value.startswith("__") and node.name.value.endswith("__")
     is_property = any(
-        m.matches(deco.decorator, m.Name("property")) for deco in node.decorators
+        isinstance(deco.decorator, cst.Name) and deco.decorator.value == "property"
+        for deco in node.decorators
     )
     return is_special or is_property
 
@@ -49,8 +49,11 @@ class ClassSkeletonTransformer(cst.CSTTransformer):
         new_body = []
 
         for item in updated_node.body.body:
-            if m.matches(
-                item, m.SimpleStatementLine(body=[m.Expr(value=m.SimpleString())])
+            if (
+                isinstance(item, cst.SimpleStatementLine)
+                and len(item.body) == 1
+                and isinstance(item.body[0], cst.Expr)
+                and isinstance(item.body[0].value, cst.SimpleString)
             ):
                 new_body.append(item)
 
