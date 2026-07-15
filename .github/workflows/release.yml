@@ -78,13 +78,25 @@ jobs:
           uv pip install --system --no-deps ./packages/pydoctor_shared_cst
           uv pip install --system --no-deps ./packages/pydoctor_cli
 
+      - name: Install Build Dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ccache
+
+      - name: Create Nuitka cache directories
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          mkdir -p ~/.cache/Nuitka
+          mkdir -p ~/.ccache
+
       - name: Setup Nuitka Cache
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/Nuitka
-            ~/Library/Caches/Nuitka
             ~/.ccache
+            ~/Library/Caches/Nuitka
             ~/AppData/Local/Nuitka/Nuitka
             ~/AppData/Local/Nuitka/Nuitka/ccache
 
