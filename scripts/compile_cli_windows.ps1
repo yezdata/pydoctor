@@ -23,15 +23,13 @@ try {
     uv pip install --no-deps ./packages/pydoctor_cli
 
 
-    export CCFLAGS="-O1"
+    $env:CCFLAGS = "-O1"
 
     python -m nuitka `
         --standalone `
         --onefile `
         --lto=no `
         --mingw64 `
-        --jobs=1 `
-        --low-memory `
         --enable-plugin=anti-bloat `
         --output-dir="$OUTPUT_DIR" `
         --report=report.xml `

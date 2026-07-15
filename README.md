@@ -72,7 +72,7 @@ chmod +x pydoctor-*
 > If you prefer not to bypass Gatekeeper, see [local compilation](#alternatively-compile-locally) below.
 
 ### Alternatively compile locally
-> Using the prepared `scripts/compile_cli_local.bash` script:
+> Using the prepared `scripts/compile_cli_local.bash` script (Only Linux / macOS)
 
 **The script uses [uv](https://docs.astral.sh/uv/) as python and venv manager by default**
 
