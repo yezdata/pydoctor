@@ -55,7 +55,7 @@ def get_model_path(repo_id: str, filename: str) -> Path:
                         bar = "█" * filled_length + "-" * (bar_length - filled_length)
 
                         sys.stdout.write(
-                            f"\rDownloading pydoctor_model: |{bar}| {percent:.1%} ({downloaded_mb:.1f}/{total_mb:.1f} MB)"
+                            f"\rDownloading PyDoctor model: |{bar}| {percent:.1%} ({downloaded_mb:.1f}/{total_mb:.1f} MB)"
                         )
                         sys.stdout.flush()
 
