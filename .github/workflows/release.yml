@@ -108,32 +108,13 @@ jobs:
         run: |
           CLI_SCRIPT="packages/pydoctor_cli/src/pydoctor_cli/cli.py"
 
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            echo "CCFLAGS=-O1" >> $GITHUB_ENV
-            export CCFLAGS="-O1"
-          fi
-
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            python -m nuitka \
-                --standalone \
-                --onefile \
-                --lto=no \
-                --jobs=1 \
-                --low-memory \
-                --enable-plugin=anti-bloat \
-                --assume-yes-for-downloads \
-                --output-dir=dist \
-                $CLI_SCRIPT
-          else
-            python -m nuitka \
-                --standalone \
-                --onefile \
-                --enable-plugin=anti-bloat \
-                --assume-yes-for-downloads \
-                --output-dir=dist \
-                $CLI_SCRIPT
-          fi
-
+          python -m nuitka \
+              --standalone \
+              --onefile \
+              --enable-plugin=anti-bloat \
+              --assume-yes-for-downloads \
+              --output-dir=dist \
+              $CLI_SCRIPT
 
       - name: Rename binary for release
         shell: bash
