@@ -50,6 +50,8 @@ if [ ! -f "$MODEL_PATH" ]; then
     echo "Downloading PyDoctor model..."
     MODEL_URL="https://huggingface.co/${MODEL_REPO}/resolve/main/${MODEL_FILE}"
 
+    rm -f "$MODEL_PATH.download"
+
     curl -L --progress-bar "$MODEL_URL" -o "$MODEL_PATH.download"
     mv "$MODEL_PATH.download" "$MODEL_PATH"
     echo "Model successfully cached."
