@@ -5,7 +5,13 @@ OUTPUT_DIR="dist"
 mkdir -p "$OUTPUT_DIR"
 
 BUILD_DIR=$(mktemp -d)
-trap 'rm -rf "$BUILD_DIR"' EXIT
+
+cleanup() {
+    echo "Cleaning up temporary build directory..."
+    rm -rf "$BUILD_DIR"
+}
+
+trap cleanup EXIT INT TERM
 
 uv venv "$BUILD_DIR/.venv" --no-config --python 3.12
 source "$BUILD_DIR/.venv/bin/activate"
