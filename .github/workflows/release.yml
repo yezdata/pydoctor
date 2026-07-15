@@ -66,7 +66,10 @@ jobs:
           uv pip install --system "Nuitka[onefile]"
 
           if [ "${{ matrix.backend }}" = "metal" ]; then
-            uv pip install --system -r requirements.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/metal
+            echo "CMAKE_ARGS=-DGGML_METAL=on" >> $GITHUB_ENV
+            export CMAKE_ARGS="-DGGML_METAL=on"
+
+            uv pip install --system --no-binary llama-cpp-python -r requirements.txt
 
           else
             uv pip install --system -r requirements.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
