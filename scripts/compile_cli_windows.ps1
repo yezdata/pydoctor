@@ -23,12 +23,9 @@ try {
     uv pip install --no-deps ./packages/pydoctor_cli
 
 
-    $env:CCFLAGS = "-O1"
-
     python -m nuitka `
         --standalone `
         --onefile `
-        --lto=no `
         --enable-plugin=anti-bloat `
         --output-dir="$OUTPUT_DIR" `
         --report=report.xml `
