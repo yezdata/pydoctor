@@ -111,6 +111,7 @@ jobs:
           python -m nuitka \
               --standalone \
               --onefile \
+              --onefile-cache-mode=cached \
               --enable-plugin=anti-bloat \
               --assume-yes-for-downloads \
               --output-dir=dist \
