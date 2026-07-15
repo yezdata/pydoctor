@@ -2,7 +2,7 @@ from pathlib import Path
 import os
 import sys
 import logging
-import urllib.request
+import requests
 
 
 def get_model_path(repo_id: str, filename: str) -> Path:
@@ -26,38 +26,38 @@ def get_model_path(repo_id: str, filename: str) -> Path:
     logging.info("Downloading pydoctor_model...")
 
     tmp_model_path = model_path.with_suffix(".download")
+
     try:
-        with (
-            urllib.request.urlopen(url) as response,
-            open(tmp_model_path, "wb") as out_file,
-        ):
-            total_size = response.getheader("Content-Length")
+        with requests.get(url, stream=True, timeout=30) as response:
+            response.raise_for_status()
+
+            total_size = response.headers.get("content-length")
             if total_size is not None:
                 total_size = int(total_size)
 
             downloaded = 0
             block_size = 1024 * 1024  # 1MB
 
-            while True:
-                block = response.read(block_size)
-                if not block:
-                    break
-                out_file.write(block)
-                downloaded += len(block)
+            with open(tmp_model_path, "wb") as out_file:
+                for block in response.iter_content(chunk_size=block_size):
+                    if not block:
+                        break
+                    out_file.write(block)
+                    downloaded += len(block)
 
-                if total_size:
-                    percent = downloaded / total_size
-                    downloaded_mb = downloaded / (1024 * 1024)
-                    total_mb = total_size / (1024 * 1024)
+                    if total_size:
+                        percent = downloaded / total_size
+                        downloaded_mb = downloaded / (1024 * 1024)
+                        total_mb = total_size / (1024 * 1024)
 
-                    bar_length = 40
-                    filled_length = int(round(bar_length * percent))
-                    bar = "█" * filled_length + "-" * (bar_length - filled_length)
+                        bar_length = 40
+                        filled_length = int(round(bar_length * percent))
+                        bar = "█" * filled_length + "-" * (bar_length - filled_length)
 
-                    sys.stdout.write(
-                        f"\rDownloading pydoctor_model: |{bar}| {percent:.1%} ({downloaded_mb:.1f}/{total_mb:.1f} MB)"
-                    )
-                    sys.stdout.flush()
+                        sys.stdout.write(
+                            f"\rDownloading pydoctor_model: |{bar}| {percent:.1%} ({downloaded_mb:.1f}/{total_mb:.1f} MB)"
+                        )
+                        sys.stdout.flush()
 
             sys.stdout.write("\n")
             sys.stdout.flush()
@@ -67,6 +67,7 @@ def get_model_path(repo_id: str, filename: str) -> Path:
 
     except Exception:
         sys.stdout.write("\n")
+        logging.exception("Download failed")
         if tmp_model_path.exists():
             try:
                 tmp_model_path.unlink()
