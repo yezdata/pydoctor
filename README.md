@@ -10,7 +10,7 @@ PyDoctor is a fully local, LLM-powered CLI tool that automatically writes and ma
 
 PyDoctor aims at providing concise, english and descriptive summarization docstrings. Thus, the style of generated docstrings is more of a summary of target code block. Specific sections such as Args: or Returns: are not included on purpose, as heuristic / deterministic tools are more reliable in generating those. 
 
-On first run PyDoctor downloads the GGUF model from HuggingFace into a local cache (`~/.cache/pydoctor/` on Linux/macOS, `%LOCALAPPDATA%\pydoctor\` on Windows) and reuses it on every subsequent run.
+On first run (or when using the [installation script](#installation)) PyDoctor downloads the GGUF model from HuggingFace into a local cache (`~/.cache/pydoctor/` on Linux/macOS, `%LOCALAPPDATA%\pydoctor\` on Windows) and reuses it on every subsequent run.
 
 Ignore rules are collected from `.gitignore`, an optional `.pydoctor_ignore` file, and inline `# pydoctor: ignore` comments, so you always stay in control of what gets touched.
 
@@ -18,28 +18,31 @@ Ignore rules are collected from `.gitignore`, an optional `.pydoctor_ignore` fil
 ## Quick Start
 
 ```bash
-# 1. Download (ubuntu example)
-curl -L https://github.com/yezdata/pydoctor/releases/latest/download/pydoctor-linux-x86_64 -o pydoctor && chmod +x pydoctor
+# 1. Download (linux example)
+curl -fsSL https://github.com/yezdata/pydoctor/releases/latest/download/install.sh | sh
 
 # 2. Preview what would change — no files are modified
-./pydoctor ./my_project --dry-run
+pydoctor ~/my_project --dry-run
 
 # 3. Add docstrings to every undocumented function, method, and class
-./pydoctor ./my_project
+pydoctor ~/my_project
 ```
 
 > [!TIP]
-> Always run with `--dry-run` first on an existing codebase so you can review the generated docstrings before they are written.
+> Run with `--dry-run` first on an existing codebase so you can review the generated docstrings before they are written.
 
 ## Installation
 
-**Linux:**
+To download the PyDoctor CLI, configure system paths, and pre-cache the GGUF model, run the installer for your platform:
+
+### Linux / macOS
 ```bash
-curl -L https://github.com/yezdata/pydoctor/releases/latest/download/pydoctor-linux-x86_64 -o pydoctor && chmod +x pydoctor
+curl -fsSL https://github.com/yezdata/pydoctor/releases/latest/download/install.sh | sh
 ```
-**macOS (M-Series):**
-```bash
-curl -L https://github.com/yezdata/pydoctor/releases/latest/download/pydoctor-macos-arm64 -o pydoctor && chmod +x pydoctor
+
+### Windows (PowerShell)
+```powershell
+irm https://github.com/yezdata/pydoctor/releases/latest/download/install.ps1 | iex
 ```
 
 Or download the pre-built binary for your platform from the [GitHub Releases](../../releases/latest) page:
@@ -50,14 +53,9 @@ Or download the pre-built binary for your platform from the [GitHub Releases](..
 | Linux x86\_64 | CPU | `pydoctor-linux-x86_64` |
 | macOS arm64 | Apple Silicon (Metal) | `pydoctor-macos-arm64` |
 
-On Linux/macOS, make the binary executable after download:
-```bash
-chmod +x pydoctor-*
-```
-
 > [!WARNING]
 > **macOS — Gatekeeper / Security Block**
-> macOS will block unsigned binaries by default. To allow execution, run:
+> macOS will block manually downloaded unsigned binaries by default. To allow execution, run:
 > ```bash
 > xattr -d com.apple.quarantine ./pydoctor-macos-arm64
 > ```
@@ -65,22 +63,22 @@ chmod +x pydoctor-*
 > If you prefer not to bypass Gatekeeper, see [local compilation](#alternatively-compile-locally) below.
 
 ### Alternatively compile locally
-> Using the prepared `scripts/compile_cli_local.bash` script (Only Linux / macOS)
+> Using the prepared `scripts/compile_cli_unix.bash` or `scripts/compile_cli_windows.ps1` script
 
 **The script uses [uv](https://docs.astral.sh/uv/) as python and venv manager by default**
 
 **Requirements:** uv, git, and a C compiler (GCC / Clang / MSVC) required by Nuitka. Python 3.12 is installed automatically by uv.
 
+**Example usage:**
 ```bash
 git clone https://github.com/yezdata/pydoctor.git
 cd pydoctor
 
-bash ./scripts/compile_cli_local.bash
+bash ./scripts/compile_cli_unix.bash
 ```
 
 
 ## Usage
-
 ```
 pydoctor <path> [--replace | --all] [--dry-run] [-v]
 ```
