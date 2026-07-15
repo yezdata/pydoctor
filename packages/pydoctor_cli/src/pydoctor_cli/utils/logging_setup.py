@@ -123,3 +123,7 @@ def setup_logging(log_level: int) -> None:
     root_logger.setLevel(log_level)
     root_logger.handlers.clear()
     root_logger.addHandler(stream_handler)
+
+
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("requests").setLevel(logging.WARNING)

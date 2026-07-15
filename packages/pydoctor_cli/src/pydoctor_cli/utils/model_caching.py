@@ -23,7 +23,7 @@ def get_model_path(repo_id: str, filename: str) -> Path:
         return model_path
 
     url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
-    logging.info("Downloading pydoctor_model...")
+    logging.info("PyDoctor model not found in cache: Downloading...")
 
     tmp_model_path = model_path.with_suffix(".download")
 

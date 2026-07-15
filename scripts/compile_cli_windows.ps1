@@ -29,7 +29,6 @@ try {
         --standalone `
         --onefile `
         --lto=no `
-        --mingw64 `
         --enable-plugin=anti-bloat `
         --output-dir="$OUTPUT_DIR" `
         --report=report.xml `
