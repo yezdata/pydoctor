@@ -8,8 +8,9 @@
 
 PyDoctor is a fully local, LLM-powered CLI tool that automatically writes and manages docstrings in your Python codebase. It parses your source files using **LibCST**, precisely extracting every function, method, and class that needs documentation while preserving your code's exact formatting. Each extracted block is fed — with its surrounding class context — into a fine-tuned **SmolLM2-1.7B-Instruct** model running locally via **llama.cpp**. The model generates a concise, single-paragraph docstring and the result is written back atomically, so your source is never left in a broken state.
 
+PyDoctor aims at providing concise, english and descriptive summarization docstrings. Thus, the style of generated docstrings is more of a summary of target code block. Specific sections such as Args: or Returns: are not included on purpose, as heuristic / deterministic tools are more reliable in generating those. 
+
 On first run PyDoctor downloads the GGUF model from HuggingFace into a local cache (`~/.cache/pydoctor/` on Linux/macOS, `%LOCALAPPDATA%\pydoctor\` on Windows) and reuses it on every subsequent run.
-When using *NVIDIA* pydoctor binary, GPU acceleration is automatic — all model layers are offloaded to the GPU when one is available.
 
 Ignore rules are collected from `.gitignore`, an optional `.pydoctor_ignore` file, and inline `# pydoctor: ignore` comments, so you always stay in control of what gets touched.
 
@@ -17,10 +18,8 @@ Ignore rules are collected from `.gitignore`, an optional `.pydoctor_ignore` fil
 ## Quick Start
 
 ```bash
-# 1. Download (ubuntu-cpu example)
-curl -L https://github.com/yezdata/pydoctor/releases/latest/download/pydoctor-linux-x86_64-cpu -o pydoctor
-
-chmod +x pydoctor
+# 1. Download (ubuntu example)
+curl -L https://github.com/yezdata/pydoctor/releases/latest/download/pydoctor-linux-x86_64 -o pydoctor && chmod +x pydoctor
 
 # 2. Preview what would change — no files are modified
 ./pydoctor ./my_project --dry-run
@@ -34,15 +33,11 @@ chmod +x pydoctor
 
 ## Installation
 
-**Linux (CPU):**
+**Linux:**
 ```bash
-curl -L https://github.com/yezdata/pydoctor/releases/latest/download/pydoctor-linux-x86_64-cpu -o pydoctor && chmod +x pydoctor
+curl -L https://github.com/yezdata/pydoctor/releases/latest/download/pydoctor-linux-x86_64 -o pydoctor && chmod +x pydoctor
 ```
-**Linux (NVIDIA GPU):**
-```bash
-curl -L https://github.com/yezdata/pydoctor/releases/latest/download/pydoctor-linux-x86_64-nvidia -o pydoctor && chmod +x pydoctor
-```
-**macOS (Apple Silicon):**
+**macOS (M-Series):**
 ```bash
 curl -L https://github.com/yezdata/pydoctor/releases/latest/download/pydoctor-macos-arm64 -o pydoctor && chmod +x pydoctor
 ```
@@ -51,10 +46,8 @@ Or download the pre-built binary for your platform from the [GitHub Releases](..
 
 | Platform | Backend | Binary |
 |---|---|---|
-| Windows x64 | CPU | `pydoctor-windows-amd64-cpu.exe` |
-| Windows x64 | NVIDIA GPU (CUDA) | `pydoctor-windows-amd64-nvidia.exe` |
-| Linux x86\_64 | CPU | `pydoctor-linux-x86_64-cpu` |
-| Linux x86\_64 | NVIDIA GPU (CUDA) | `pydoctor-linux-x86_64-nvidia` |
+| Windows x64 | CPU | `pydoctor-windows-amd64.exe` |
+| Linux x86\_64 | CPU | `pydoctor-linux-x86_64` |
 | macOS arm64 | Apple Silicon (Metal) | `pydoctor-macos-arm64` |
 
 On Linux/macOS, make the binary executable after download:
