@@ -107,6 +107,7 @@ jobs:
                 --onefile \
                 --lto=no \
                 --mingw64 \
+                --include-vcredist=yes \
                 --jobs=1 \
                 --low-memory \
                 --enable-plugin=anti-bloat \
