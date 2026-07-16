@@ -57,7 +57,7 @@ Or download the pre-built binary for your platform from the [GitHub Releases](..
 > If you prefer not to bypass Gatekeeper, see [local compilation](#alternatively-compile-locally) below.
 
 ### Alternatively compile locally
-> Using the prepared `scripts/compile_cli_unix.bash` or `scripts/compile_cli_windows.ps1` script
+> Using the prepared `scripts/compile_cli_unix.bash` or `scripts/compile_cli_windows.ps1` script.
 
 **The script uses [uv](https://docs.astral.sh/uv/) as python and venv manager by default**
 
@@ -77,7 +77,7 @@ bash ./scripts/compile_cli_unix.bash
 pydoctor <path> [--replace | --all] [--dry-run] [-v]
 ```
 
-> *Default:* PyDoctor adds docstrings only where **missing**
+> **Default:** PyDoctor adds docstrings only where **missing**
 
 | Argument | Description |
 |---|---|
