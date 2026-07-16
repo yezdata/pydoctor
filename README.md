@@ -33,7 +33,7 @@ pydoctor ~/my_project
 
 ## Installation
 
-To download the PyDoctor CLI, configure system paths, and pre-cache the GGUF model, run the installer for your platform:
+To download the PyDoctor CLI, add `pydoctor` command to your path, and pre-cache the GGUF model, run the installer for your platform:
 
 ### Linux / macOS
 ```bash
