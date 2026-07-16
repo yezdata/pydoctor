@@ -45,13 +45,7 @@ curl -fsSL https://github.com/yezdata/pydoctor/releases/latest/download/install.
 irm https://github.com/yezdata/pydoctor/releases/latest/download/install.ps1 | iex
 ```
 
-Or download the pre-built binary for your platform from the [GitHub Releases](../../releases/latest) page:
-
-| Platform | Backend | Binary |
-|---|---|---|
-| Windows x64 | CPU | `pydoctor-windows-amd64.exe` |
-| Linux x86\_64 | CPU | `pydoctor-linux-x86_64` |
-| macOS arm64 | Apple Silicon (Metal) | `pydoctor-macos-arm64` |
+Or download the pre-built binary for your platform from the [GitHub Releases](../../releases/latest) page
 
 > [!WARNING]
 > **macOS — Gatekeeper / Security Block**
