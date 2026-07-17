@@ -11,6 +11,7 @@ from pydoctor_cli.utils.file_processing import (
     parser_producer,
     inference_consumer,
 )
+from pydoctor_cli.utils.spinner import CLIProgress
 from pydoctor_cli.utils.model_caching import get_model_path
 from pydoctor_cli.utils.logging_setup import setup_logging
 from pydoctor_cli.utils.args_parser import get_argparser
@@ -78,7 +79,16 @@ def main() -> None:
     )
     producer_thread.start()
 
-    inference_consumer(llm, args.dry_run, task_queue, result_counter)
+    if not args.verbose:
+        progress = CLIProgress()
+        progress.start()
+    else:
+        progress = None
+
+    inference_consumer(llm, args.dry_run, task_queue, result_counter, progress)
+
+    if progress:
+        progress.stop()
 
     producer_thread.join()
 

@@ -7,7 +7,9 @@ import pathspec
 import logging
 import os
 import queue
+import sys
 
+from pydoctor_cli.utils.spinner import CLIProgress
 from pydoctor_shared_cst.code_extractor import CodeExtractor
 from pydoctor_shared_cst.docstring_transformer import DocstringTransformer
 from pydoctor_cli.utils.inference import generate_docstring
@@ -128,7 +130,11 @@ def parser_producer(
 
 
 def inference_consumer(
-    llm: Llama, is_dry_run: bool, task_queue: queue.Queue, result_counter: list[int]
+    llm: Llama,
+    is_dry_run: bool,
+    task_queue: queue.Queue,
+    result_counter: list[int],
+    progress: CLIProgress | None,
 ) -> None:
     """
     Running in main thread
@@ -143,6 +149,9 @@ def inference_consumer(
         if file_path is None:
             task_queue.task_done()
             break
+
+        if progress:
+            progress.set_file(file_path.name)
 
         tmp_file_path = file_path.with_suffix(file_path.suffix + ".tmp")
         if tmp_file_path.exists():
@@ -175,6 +184,9 @@ def inference_consumer(
             modified_tree = wrapper.visit(transformer)
 
             if is_dry_run:
+                if progress:
+                    progress.pause_and_clear()
+
                 for key, old_docstring in transformer.old_docstrings.items():
                     docstring_info = new_docstrings.get(key, {})
                     new_docstring = docstring_info.get("docstring", "")
@@ -186,6 +198,8 @@ def inference_consumer(
                         old_docstring,
                         new_docstring,
                     )
+
+                sys.stdout.write("\n")
             else:
                 tmp_file_path.write_text(modified_tree.code, encoding="utf-8")
                 tmp_file_path.replace(file_path)
@@ -202,6 +216,8 @@ def inference_consumer(
                 except OSError:
                     logging.error(f"Could not remove stale tmp file: {tmp_file_path}")
         finally:
+            if progress:
+                progress.resume()
             task_queue.task_done()
 
     result_counter[0] = transformed_blocks_total
