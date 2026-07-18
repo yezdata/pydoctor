@@ -76,9 +76,7 @@ def evaluate(
             if max_eval_steps is not None and steps_run >= max_eval_steps:
                 break
 
-            logits = model(
-                input_ids=batch["input_ids"], attention_mask=batch["attention_mask"]
-            ).logits
+            logits = model(input_ids=batch["input_ids"])
             loss = compute_loss(criterion, logits, batch["labels"])
 
             total_loss += loss.detach().item()
@@ -107,7 +105,6 @@ def main() -> None:
         model_config = DecoderConfig.model_validate_json(f.read())
 
     config.decoder = model_config
-    config.decoder.vocab_size = len(tokenizer)
 
     with open(f"{SAVE_PATH}/config.json", "w") as f:
         f.write(config.model_dump_json(indent=4))
@@ -136,6 +133,8 @@ def main() -> None:
     # account for docstring spec tokens
     model.resize_token_embeddings(len(tokenizer))
 
+    config.decoder.vocab_size = len(tokenizer)
+
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
@@ -143,7 +142,7 @@ def main() -> None:
     accelerator.print(f"Trainable parameters: {trainable_params:,}")
 
     tokenized_train_ds = load_from_disk(config.finetune.tokenized_ds_dir).with_format(
-        type="torch", columns=["input_ids", "attention_mask", "labels"]
+        type="torch", columns=["input_ids", "labels"]
     )
 
     # REMOVE LONG SEQUENCES
@@ -214,9 +213,7 @@ def main() -> None:
             enumerate(train_dataloader), total=len(train_dataloader)
         ):
             with accelerator.accumulate(model):
-                logits = model(
-                    input_ids=batch["input_ids"], attention_mask=batch["attention_mask"]
-                ).logits
+                logits = model(input_ids=batch["input_ids"])
 
                 loss = compute_loss(
                     criterion,

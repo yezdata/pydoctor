@@ -94,9 +94,7 @@ def evaluate(
             if max_eval_steps is not None and steps_run >= max_eval_steps:
                 break
 
-            logits = model(
-                input_ids=batch["input_ids"], attention_mask=batch["attention_mask"]
-            ).logits
+            logits = model(input_ids=batch["input_ids"]).logits
             loss = compute_loss(criterion, logits, batch["labels"])
 
             gathered_loss = accelerator.gather(loss.detach())
@@ -149,7 +147,7 @@ def main(
     )
 
     tokenized_train_ds = load_from_disk(config.finetune.tokenized_ds_dir).with_format(
-        type="torch", columns=["input_ids", "attention_mask", "labels"]
+        type="torch", columns=["input_ids", "labels"]
     )
 
     # REMOVE LONG SEQUENCES
@@ -257,9 +255,7 @@ def main(
 
         for step, batch in train_bar:
             with accelerator.accumulate(model):
-                logits = model(
-                    input_ids=batch["input_ids"], attention_mask=batch["attention_mask"]
-                ).logits
+                logits = model(input_ids=batch["input_ids"]).logits
 
                 loss = compute_loss(
                     criterion,

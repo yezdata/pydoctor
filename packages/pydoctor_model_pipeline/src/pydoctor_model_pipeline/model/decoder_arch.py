@@ -131,16 +131,16 @@ class DecoderModel(nn.Module):
 
     def forward(
         self,
-        x: torch.Tensor,
-        mask: torch.Tensor | None = None,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor | None = None,
         input_pos: torch.Tensor | None = None,
     ) -> torch.Tensor:
 
-        x = self.token_embedding(x)
+        input_ids = self.token_embedding(input_ids)
 
         for layer in self.layers:
-            x = layer(x, mask, input_pos)
+            input_ids = layer(input_ids, attention_mask, input_pos)
 
-        x_norm = self.final_norm(x)
+        x_norm = self.final_norm(input_ids)
 
         return self.head(x_norm)

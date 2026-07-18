@@ -57,7 +57,6 @@ def tokenize_and_mask_sample(
     Tokenize prompt and completion separately and construct correct labels
     """
     batch_input_ids = []
-    batch_attention_mask = []
     batch_labels = []
 
     for prompt_str, completion_str in zip(examples["prompt"], examples["completion"]):
@@ -67,17 +66,14 @@ def tokenize_and_mask_sample(
         ]
 
         input_ids = prompt_ids + completion_ids
-        attention_mask = [1] * len(input_ids)
 
         labels = [-100] * len(prompt_ids) + completion_ids
 
         batch_input_ids.append(input_ids)
-        batch_attention_mask.append(attention_mask)
         batch_labels.append(labels)
 
     return {
         "input_ids": batch_input_ids,
-        "attention_mask": batch_attention_mask,
         "labels": batch_labels,
     }
 

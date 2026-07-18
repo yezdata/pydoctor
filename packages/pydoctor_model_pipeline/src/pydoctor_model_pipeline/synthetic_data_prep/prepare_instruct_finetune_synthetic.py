@@ -63,5 +63,5 @@ def main() -> None:
     )
 
     tokenized_ds.save_to_disk(
-        "data/finetune/tokenized_synthetic_the_stack_libs_instruct_smollm2_1_7B_instruct"
+        "data/finetune/tokenized_synthetic_codeparrot_instruct_smollm2_1_7B_instruct"
     )

@@ -11,18 +11,6 @@ batches_dir = Path("data/synthetic_batches")
 
 config = MainConfig.from_yaml("configs.yaml")
 
-# results: dict[int, str] = {}
-# list_to_save = []
-
-# for batch_file in batches_dir.glob("batch_*.json"):
-#     with open(batch_file, "r", encoding="utf-8") as f:
-#         batch_data = json.load(f)
-#         b_idx = batch_data["batch_idx"]
-#         b_results = batch_data.get("results", {})
-
-#         for k, v in b_results.items():
-#             results[int(k)] = v
-
 
 def stream_batches(batches_dir):
     for batch_file in batches_dir.glob("batch_*.json"):
