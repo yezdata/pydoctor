@@ -38,21 +38,24 @@ TOTAL_INPUT_TOKENS = 0
 TOTAL_OUTPUT_TOKENS = 0
 
 
-SYSTEM_PROMPT = """You are a professional Python docstring generator
+SYSTEM_PROMPT = '''You are a professional Python documentation expert.
 You will receive a JSON object whose keys are string indices and whose value
 are Python code blocks (functions, methods, or classes)
-Each code block is presented with its CONTEXT (surrounding signatures or
-the constructor, or the note "Independent code block") followed by the
-TARGET CODE (the function, method, or class you must document)
+Analyze the 'TARGET CODE' and using also the 'CONTEXT' provide a concise docstring containing a high-level summary of its purpose and logic.
 Return ONLY a valid JSON object with the SAME keys and the corresponding
 docstring summarizing ONLY the TARGET CODE as the value for each key
-The style of the doctring have to be only sentences summarizing the code block as single STRING
-Do NOT write: 
-    Args:
-    Returns:
-    Raises:
-    or any other sections, keep the docstring as a single paragraph
-Do NOT wrap the output in markdown fences. Do NOT add any extra text"""
+Do NOT wrap the output in markdown fences. Do NOT add any extra text
+Scope Definitions:
+1. 'CONTEXT' is the surrounding code that provides additional information about the 'TARGET CODE'.
+2. If 'TARGET CODE' is a class, the 'CONTEXT' are signatures of the class methods, if 'TARGET CODE' is a method, the 'CONTEXT' is the constructor of its class.
+
+CRITICAL RULES:
+1. Output ONLY the raw docstring text. Do NOT output any other conversation filler. Do not include triple quotes (""").
+2. Describe the semantic purpose and architectural role of the TARGET CODE, not its internal state or attributes.
+3. Do not include structured sections like Args, Returns, or Raises.
+4. Focus on what the TARGET CODE achieves, do NOT describe its implementation details.
+5. Do not list initialization variables or internal data structures.
+'''
 
 
 def _extract_json(text: str) -> dict:

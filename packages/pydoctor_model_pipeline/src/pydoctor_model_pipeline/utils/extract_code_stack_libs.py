@@ -5,6 +5,7 @@ warnings.filterwarnings("ignore", category=SyntaxWarning)
 
 import libcst as cst
 from libcst.metadata import MetadataWrapper
+from huggingface_hub import list_repo_files
 from datasets import Dataset, load_dataset
 import os
 from dotenv import load_dotenv
@@ -21,30 +22,30 @@ from pydoctor_shared_cst.code_extractor import CodeExtractor
 load_dotenv()
 HF_TOKEN = os.getenv("HF_TOKEN")
 
-LIBS_DIR = "data/raw/libs"
+# LIBS_DIR = "data/raw/libs"
 
-BATCH_SIZE = 50_000
-THE_STACK_SAMPLES = 1_000_000
+BATCH_SIZE = 1_000
+SAMPLES_COUNT = 200_000
 
 
-REPOS = [
-    "python/cpython",
-    "pytorch/pytorch",
-    "scikit-learn/scikit-learn",
-    "pandas-dev/pandas",
-    "numpy/numpy",
-    "huggingface/transformers",
-    "django/django",
-    "matplotlib/matplotlib",
-    "jax-ml/jax",
-    "home-assistant/core",
-    "spyder-ide/spyder",
-    "scipy/scipy",
-    "pallets/flask",
-    "tiangolo/fastapi",
-    "psf/requests",
-    "encode/httpx",
-]
+# REPOS = [
+#     "python/cpython",
+#     "pytorch/pytorch",
+#     "scikit-learn/scikit-learn",
+#     "pandas-dev/pandas",
+#     "numpy/numpy",
+#     "huggingface/transformers",
+#     "django/django",
+#     "matplotlib/matplotlib",
+#     "jax-ml/jax",
+#     "home-assistant/core",
+#     "spyder-ide/spyder",
+#     "scipy/scipy",
+#     "pallets/flask",
+#     "tiangolo/fastapi",
+#     "psf/requests",
+#     "encode/httpx",
+# ]
 
 
 def read_file(filepath: str) -> str | None:
@@ -114,50 +115,64 @@ def extract_code(save_path: str) -> None:
     num_workers = 16
     print(f"Workers: {num_workers}")
 
-    if not os.path.exists(LIBS_DIR):
-        os.makedirs(LIBS_DIR, exist_ok=True)
-        for repo in REPOS:
-            download_and_extract_py(repo, LIBS_DIR)
-
-    file_paths = [
-        fp
-        for fp in glob.iglob(f"{LIBS_DIR}/**/*.py", recursive=True)
-        if os.path.isfile(fp)
-        and "test" not in os.path.basename(fp).lower()
-        and "test" not in fp.lower()
-        and "init" not in fp.lower()
-    ]
+    # if not os.path.exists(LIBS_DIR):
+    #     os.makedirs(LIBS_DIR, exist_ok=True)
+    #     for repo in REPOS:
+    #         download_and_extract_py(repo, LIBS_DIR)
+    #
+    # file_paths = [
+    #     fp
+    #     for fp in glob.iglob(f"{LIBS_DIR}/**/*.py", recursive=True)
+    #     if os.path.isfile(fp)
+    #     and "test" not in os.path.basename(fp).lower()
+    #     and "test" not in fp.lower()
+    #     and "init" not in fp.lower()
+    # ]
 
     all_extracted_blocks = []
     batch = []
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
-        for fp in tqdm(file_paths, total=len(file_paths), desc="Processing libs files"):
-            content = read_file(fp)
+        # for fp in tqdm(file_paths, total=len(file_paths), desc="Processing libs files"):
+        #     content = read_file(fp)
+        #
+        #     if content:
+        #         batch.append(content)
+        #
+        #     if len(batch) >= BATCH_SIZE:
+        #         all_extracted_blocks.extend(process_batch_parallel(batch))
+        #         batch.clear()
+        #
+        # if batch:
+        #     all_extracted_blocks.extend(process_batch_parallel(batch))
+        #     batch.clear()
 
-            if content:
-                batch.append(content)
-
-            if len(batch) >= BATCH_SIZE:
-                all_extracted_blocks.extend(process_batch_parallel(batch))
-                batch.clear()
-
-        if batch:
-            all_extracted_blocks.extend(process_batch_parallel(batch))
-            batch.clear()
-
-        thestack = load_dataset(
-            "bigcode/the-stack-dedup",
-            data_dir="data/python",
-            token=HF_TOKEN,
-            split="train",
+        ds_id = "codeparrot/codeparrot-clean"
+        all_files_ds = list_repo_files(ds_id, repo_type="dataset")
+        unsafe_files_ds = {
+            "file-000000000021.json.gz",
+            "file-000000000029.json.gz",
+            "file-000000000045.json.gz",
+            "file-000000000053.json.gz",
+        }
+        safe_files_ds = [
+            f
+            for f in all_files_ds
+            if f.endswith(".json.gz") and f not in unsafe_files_ds
+        ]
+        ds = load_dataset(
+            ds_id,
             streaming=True,
-        )
+            token=HF_TOKEN,
+            data_files={"train": safe_files_ds},
+            data_dir=None,
+        )["train"]
+
         parsed_samples = 0
         for item in tqdm(
-            iter(thestack), total=THE_STACK_SAMPLES, desc="Processing the-stack-dedup"
+            iter(ds), total=SAMPLES_COUNT, desc="Processing codeparrot-clean"
         ):
-            if parsed_samples >= THE_STACK_SAMPLES:
+            if parsed_samples >= SAMPLES_COUNT:
                 break
 
             content = item.get("content", "")
