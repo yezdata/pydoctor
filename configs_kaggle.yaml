@@ -5,11 +5,11 @@ tokenizer:
     docstring_start_token: null
 
 finetune:
-  tokenized_ds_dir: "/kaggle/input/datasets/vclavje/synthetic-thestack-codeparrot-libs-instruct-v2"
+  tokenized_ds_dir: "/kaggle/input/datasets/vclavje/tokenized-synthetic--codeparrot-instruct-FINAL"
   lr: 2e-4
   lr_warmup: 0.05
   weight_decay: 0.01
   batch_size: 8
   gradient_accumulation_steps: 8
-  num_epochs: 4
+  num_epochs: 1
 
