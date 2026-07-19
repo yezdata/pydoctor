@@ -1,6 +1,6 @@
-set -e
+set -euo pipefail
 
-LORA_MODEL_PATH="models/smollm2_1_7b_instruct/epoch_1"
+LORA_MODEL_PATH="models/smollm2_1_7b_instruct_FINAL/epoch_1"
 MERGED_PATH="models/smollm2_1_7b_instruct_merged"
 GGUF_OUT_DIR="models/gguf"
 

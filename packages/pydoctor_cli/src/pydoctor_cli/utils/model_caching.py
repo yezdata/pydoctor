@@ -14,6 +14,8 @@ def get_model_path(repo_id: str, filename: str) -> Path:
     else:
         base_cache = Path(os.getenv("XDG_CACHE_HOME", Path.home() / ".cache"))
 
+    model_name = repo_id.split("/")[-1]
+
     cache_dir = base_cache / "pydoctor"
     cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -23,7 +25,7 @@ def get_model_path(repo_id: str, filename: str) -> Path:
         return model_path
 
     url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
-    logging.info("PyDoctor model not found in cache: Downloading...")
+    logging.info(f"{model_name} not found in cache: Downloading...")
 
     tmp_model_path = model_path.with_suffix(".download")
 
@@ -55,7 +57,7 @@ def get_model_path(repo_id: str, filename: str) -> Path:
                         bar = "█" * filled_length + "-" * (bar_length - filled_length)
 
                         sys.stdout.write(
-                            f"\rDownloading PyDoctor model: |{bar}| {percent:.1%} ({downloaded_mb:.1f}/{total_mb:.1f} MB)"
+                            f"\rDownloading {model_name}: |{bar}| {percent:.1%} ({downloaded_mb:.1f}/{total_mb:.1f} MB)"
                         )
                         sys.stdout.flush()
 

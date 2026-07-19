@@ -36,3 +36,4 @@ run_finetune = " pydoctor_model_pipeline.training.finetune:main"
 
 
 merge_lora = "pydoctor_model_pipeline.utils.merge_lora:main"
+create_hf_llama = "pydoctor_model_pipeline.utils.export_to_hf_llama:main"

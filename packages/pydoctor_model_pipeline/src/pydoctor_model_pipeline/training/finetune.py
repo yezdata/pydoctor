@@ -106,9 +106,6 @@ def main() -> None:
 
     config.decoder = model_config
 
-    with open(f"{SAVE_PATH}/config.json", "w") as f:
-        f.write(config.model_dump_json(indent=4))
-
     accelerator = Accelerator(
         gradient_accumulation_steps=config.finetune.gradient_accumulation_steps,
         mixed_precision="bf16",
@@ -134,6 +131,9 @@ def main() -> None:
     model.resize_token_embeddings(len(tokenizer))
 
     config.decoder.vocab_size = len(tokenizer)
+
+    with open(f"{SAVE_PATH}/config.json", "w") as f:
+        f.write(config.model_dump_json(indent=4))
 
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)

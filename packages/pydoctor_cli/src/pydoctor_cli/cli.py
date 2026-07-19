@@ -50,6 +50,8 @@ def main() -> None:
     REPO_ID = "yezdata/SmolLM2-1.7B-Instruct-DocstringGenerator"
     MODEL_FILE = "smollm2_1_7b_instruct_merged-q8_0.gguf"
 
+    model_name = REPO_ID.split("/")[-1]
+
     try:
         model_path = get_model_path(REPO_ID, MODEL_FILE)
     except Exception as e:
@@ -58,7 +60,7 @@ def main() -> None:
         )
         sys.exit(1)
 
-    logging.debug("Loading pydoctor_model...")
+    logging.debug(f"Loading model: {model_name}...")
     llm = Llama(
         model_path=str(model_path),
         n_ctx=2048,
@@ -67,7 +69,7 @@ def main() -> None:
         seed=42,
         verbose=False,
     )
-    logging.debug("pydoctor_model loaded successfully.")
+    logging.debug(f"Model: {model_name} loaded successfully.")
 
     task_queue = queue.Queue(maxsize=20)
     result_counter = [0]

@@ -87,7 +87,7 @@ if (!(Test-Path $ModelPath)) {
     }
 
     try {
-        Download-WithProgress -Url $ModelUrl -DestinationPath $TempModelPath -DisplayName "PyDoctor model"
+        Download-WithProgress -Url $ModelUrl -DestinationPath $TempModelPath -DisplayName "Model"
         Move-Item -Path $TempModelPath -Destination $ModelPath -Force
         Write-Host "Model successfully cached."
     } catch {

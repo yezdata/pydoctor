@@ -114,7 +114,7 @@ jobs:
               --onefile-cache-mode=cached \
               --company-name="pydoctor" \
               --product-name="src" \
-              --product-version="1.0.0" \
+              --product-version="1.0.1" \
               --enable-plugin=anti-bloat \
               --assume-yes-for-downloads \
               --output-dir=dist \

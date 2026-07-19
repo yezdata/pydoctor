@@ -47,7 +47,7 @@ fi
 
 MODEL_PATH="$CACHE_DIR/$MODEL_FILE"
 if [ ! -f "$MODEL_PATH" ]; then
-    echo "Downloading PyDoctor model..."
+    echo "Downloading Model..."
     MODEL_URL="https://huggingface.co/${MODEL_REPO}/resolve/main/${MODEL_FILE}"
 
     rm -f "$MODEL_PATH.download"

@@ -16,7 +16,7 @@ CRITICAL RULES:
 '''
 
 
-def get_chat_template(sample: dict) -> str:
+def get_input_template(sample: dict) -> str:
     final_output = (
         f"<|im_start|>system\n{SYSTEM_PROMPT}<|im_end|>\n"
         f"<|im_start|>user\nCONTEXT\n{sample['context']}\n\nTARGET CODE\n{sample['target']}<|im_end|>\n"
@@ -26,7 +26,7 @@ def get_chat_template(sample: dict) -> str:
 
 
 def generate_docstring(llm: Llama, sample: dict) -> str:
-    prompt = get_chat_template(sample)
+    prompt = get_input_template(sample)
 
     response = llm(
         prompt,
@@ -34,7 +34,7 @@ def generate_docstring(llm: Llama, sample: dict) -> str:
         top_k=50,
         top_p=0.90,
         max_tokens=256,
-        stop=["<|im_end|>"],
+        stop=["<|im_end|>", "<endoftext>"],
     )
 
     return response["choices"][0]["text"]
